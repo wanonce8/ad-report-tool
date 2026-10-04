@@ -102,7 +102,11 @@ legend{font-size:13px;font-weight:700;color:var(--slate);margin-bottom:8px}
 .ck{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px;background:#FAFBFC}
 .ck input{accent-color:var(--ink);width:15px;height:15px}
 .ck .raw{color:var(--slate);font-size:11.5px;margin-left:auto}
-.metric-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 18px}
+.metric-cols{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(300px,1fr));
+  gap:4px 18px;
+}
 .metric-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line)}
 .metric-row .mname{font-size:13.5px;font-weight:700}
 .metric-row .raw{color:var(--slate);font-size:11.5px;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -275,8 +279,8 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   const METRIC_DEFS = [
   { key: 'impressions', top: '廣告', bottom: '呈現次數', match: n => n.includes('曝光次數') },
   { key: 'reach',       top: '每日', bottom: '觸及人數', match: n => n.includes('觸及人數') },
-  { key: 'linkClicks',  top: '連結', bottom: '點擊次數', match: n => n.includes('連結點擊次數') },
   { key: 'clicks',      top: '廣告', bottom: '點擊次數', match: n => n.includes('點擊次數') && n.includes('全部') },
+  { key: 'linkClicks',  top: '連結', bottom: '點擊次數', match: n => n.includes('連結點擊次數') },
   { key: 'pageLikes',   top: '加入', bottom: '粉絲人數', match: n => n.includes('粉絲專頁的讚') },
   { key: 'postLikes',   top: '貼文', bottom: '按讚次數', match: n => n.includes('貼文的讚') },
   { key: 'comments',    top: '貼文', bottom: '留言次數', match: n => n.includes('貼文留言') },
