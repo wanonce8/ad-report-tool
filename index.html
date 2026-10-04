@@ -537,7 +537,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const fmtRange = `${+config.startDate.slice(5, 7)}/${+config.startDate.slice(8)}-${+config.endDate.slice(5, 7)}/${+config.endDate.slice(8)}`;
     const info = [
       ['名稱', { value: config.name || '' }],
-      ['日期', { value: fmtRange }],
+      ['走期', { value: fmtRange }],
       ['預算', { value: num(config.budget), numFmt: FMT.budget, font: { size: 10, color: { argb: RED } } }],
       [tc.planLabel, { formula: ifErr(tc.planExpr), numFmt: FMT.plan }],
       [tc.unitLabel, { value: num(config.unitPrice), numFmt: FMT.unit }],
