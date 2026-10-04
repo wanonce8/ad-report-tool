@@ -139,7 +139,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <header>
   <div class="wrap">
     <h1>廣告成效報表產生器</h1>
-    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / CPLC / CPV</span>
+    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV</span>
   </div>
 </header>
 
@@ -177,7 +177,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         <div class="type-row" id="typeRow">
           <label class="type-opt"><input type="radio" name="rtype" value="CPM" checked><span>CPM<small>費用 ÷ 曝光 × 1000</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="CPC"><span>CPC<small>費用 ÷ 點擊次數</small></span></label>
-          <label class="type-opt"><input type="radio" name="rtype" value="CPLC"><span>CPLC<small>費用 ÷ 連結點擊</small></span></label>
+          <label class="type-opt"><input type="radio" name="rtype" value="LCPC"><span>LCPC<small>費用 ÷ 連結點擊</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="CPV"><span>CPV<small>費用 ÷ 3秒觀看</small></span></label>
         </div>
         <label class="composite-toggle"><input type="checkbox" id="compositeChk">
@@ -298,7 +298,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     CPC: { unitLabel: 'CPC', planLabel: '預計點擊次數', planExpr: 'B3/B5',
       ratio: { top: '點擊率', num: 'clicks', den: 'impressions' },
       cost: { top: 'CPC', den: 'clicks' } },
-    CPLC: { unitLabel: 'Link CPC', planLabel: '預計連結點擊次數', planExpr: 'B3/B5',
+    LCPC: { unitLabel: 'Link CPC', planLabel: '預計連結點擊次數', planExpr: 'B3/B5',
       ratio: { top: '點擊率', num: 'linkClicks', den: 'impressions' },
       cost: { top: 'Link CPC', den: 'linkClicks' } },
     CPV: { unitLabel: 'CPV', planLabel: '預計觀看次數', planExpr: 'B3/B5',
@@ -310,7 +310,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   const TYPE_PRIORITY = {
     CPM:  ['impressions', 'reach', 'clicks'],
     CPC:  ['impressions', 'clicks'],
-    CPLC: ['impressions', 'linkClicks'],
+    LCPC: ['impressions', 'linkClicks'],
     CPV:  ['impressions', 'reach', 'clicks'],  // 與 CPM 相同,影片觀看數據依偵測順序排在後段
   };
   // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
@@ -723,7 +723,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       warnings = buildSheet(wb, ExcelJS, parsed, config, config.type);
     } else {
       // 複合模式:依素材指定的「分頁」分組(分頁隸屬某類型;預設分頁名=類型名)
-      const order = ['CPM', 'CPC', 'CPLC', 'CPV'];
+      const order = ['CPM', 'CPC', 'LCPC', 'CPV'];
       const creatives = config.creatives.filter(c => c.include !== false);
       if (!creatives.length) throw new Error('複合模式下找不到任何素材');
       // 分頁清單:依類型順序,同類型內依素材出現順序
@@ -812,7 +812,7 @@ let metricState = [];   // 單一模式:{key,include} 依此順序產出欄位
 let typeMetricState = {}; // 複合模式:{CPM:[{key,include}],CPC:[...]} 欄位設定依「類型」共用
 let pageInfoState = {};   // 複合模式:{分頁名:{name,budget,unitPrice}} 基本資訊依「分頁」各一組
 let activeTab = null;     // 複合模式目前編輯的類型頁籤
-const ALL_TYPES = ['CPM', 'CPC', 'CPLC', 'CPV'];
+const ALL_TYPES = ['CPM', 'CPC', 'LCPC', 'CPV'];
 
 /* ---------- 步驟 1:上傳解析 ---------- */
 function readXlsxRows(arrayBuffer) {
@@ -1151,7 +1151,6 @@ function renderCreatives() {
       : `<div class="img-cell" data-img="${i}" title="上傳上刊圖">🖼</div>`;
     return `<div class="creative">
       <label class="ck" style="border:none;background:none;padding:0"><input type="checkbox" data-ci="${i}" ${c.include ? 'checked' : ''}></label>
-      <span class="tag mono">素材${i + 1}</span>
       ${imgCell}
       <input type="text" data-cl="${i}" value="${esc(c.label)}" aria-label="素材顯示名稱">
       ${sel}
