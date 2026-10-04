@@ -637,9 +637,9 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const audLast = dStart + groupW - 1;
     const audSide = c => [c === 1 || c === dStart ? 'medium' : 'thin', c === audLast ? 'medium' : 'thin'];
     const sectionDefs = [
-      ['interest', '興趣群組', agg.byAdset, parsed.adsets],
-      ['gender', '性別', agg.byGender, null],
-      ['age', '年齡', agg.byAge, null],
+      ['interest', '性別', agg.byAdset, parsed.adsets],
+      ['gender', '年齡', agg.byGender, null],
+      ['age', '興趣群組', agg.byAge, null],
     ];
     for (const [key, title, map, order] of sectionDefs) {
       if (!config.sections[key]) continue;
