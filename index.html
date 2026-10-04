@@ -104,6 +104,8 @@ legend{font-size:13px;font-weight:700;color:var(--slate);margin-bottom:8px}
 .ck .raw{color:var(--slate);font-size:11.5px;margin-left:auto}
 .metric-cols{
   display:grid;
+  grid-auto-flow:column;
+  grid-template-rows:repeat(7,auto);
   grid-template-columns:repeat(2,minmax(300px,1fr));
   gap:4px 18px;
 }
