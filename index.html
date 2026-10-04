@@ -272,47 +272,78 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 })(typeof self !== 'undefined' ? self : this, function () {
 
   const METRIC_DEFS = [
-    { key: 'impressions', top: '廣告', bottom: '呈現次數', match: n => n.includes('曝光次數') },
-    { key: 'reach',       top: '每日', bottom: '觸及人數', match: n => n.includes('觸及人數') },
-    { key: 'linkClicks',  top: '連結', bottom: '點擊次數', match: n => n.includes('連結點擊次數') },
-    { key: 'clicks',      top: '廣告', bottom: '點擊次數', match: n => n.includes('點擊次數') && n.includes('全部') },
-    { key: 'pageLikes',   top: '加入', bottom: '粉絲人數', match: n => n.includes('粉絲專頁的讚') },
-    { key: 'postLikes',   top: '貼文', bottom: '按讚次數', match: n => n.includes('貼文的讚') },
-    { key: 'comments',    top: '貼文', bottom: '留言次數', match: n => n.includes('貼文留言') },
-    { key: 'shares',      top: '貼文', bottom: '分享次數', match: n => n.includes('貼文分享') },
-    { key: 'video3s',     top: '影片觀看', bottom: '3秒', match: n => /3\s*秒/.test(n) || /thruplay/i.test(n) },
-    { key: 'video25',     top: '影片觀看', bottom: '25%',  match: n => /(影片|觀看|播放)/.test(n) && /25\s*%/.test(n) },
-    { key: 'video50',     top: '影片觀看', bottom: '50%',  match: n => /(影片|觀看|播放)/.test(n) && /50\s*%/.test(n) },
-    { key: 'video75',     top: '影片觀看', bottom: '75%',  match: n => /(影片|觀看|播放)/.test(n) && /75\s*%/.test(n) },
-    { key: 'video100',    top: '影片觀看', bottom: '100%', match: n => /(影片|觀看|播放)/.test(n) && /100\s*%/.test(n) },
-  ];
+  { key: 'impressions', top: '廣告', bottom: '呈現次數', match: n => n.includes('曝光次數') },
+  { key: 'reach',       top: '每日', bottom: '觸及人數', match: n => n.includes('觸及人數') },
+  { key: 'linkClicks',  top: '連結', bottom: '點擊次數', match: n => n.includes('連結點擊次數') },
+  { key: 'clicks',      top: '廣告', bottom: '點擊次數', match: n => n.includes('點擊次數') && n.includes('全部') },
+  { key: 'pageLikes',   top: '加入', bottom: '粉絲人數', match: n => n.includes('粉絲專頁的讚') },
+  { key: 'postLikes',   top: '貼文', bottom: '按讚次數', match: n => n.includes('貼文的讚') },
+  { key: 'comments',    top: '貼文', bottom: '留言次數', match: n => n.includes('貼文留言') },
+  { key: 'shares',      top: '貼文', bottom: '分享次數', match: n => n.includes('貼文分享') },
+
+  { key: 'video3s',     top: '影片觀看', bottom: '3秒', match: n => /3\s*秒/.test(n) },
+  { key: 'video15s',    top: '影片觀看', bottom: 'ThruPlay', match: n => /thruplay/i.test(n) },
+
+  { key: 'video25',     top: '影片觀看', bottom: '25%',  match: n => /(影片|觀看|播放)/.test(n) && /25\s*%/.test(n) },
+  { key: 'video50',     top: '影片觀看', bottom: '50%',  match: n => /(影片|觀看|播放)/.test(n) && /50\s*%/.test(n) },
+  { key: 'video75',     top: '影片觀看', bottom: '75%',  match: n => /(影片|觀看|播放)/.test(n) && /75\s*%/.test(n) },
+  { key: 'video100',    top: '影片觀看', bottom: '100%', match: n => /(影片|觀看|播放)/.test(n) && /100\s*%/.test(n) },
+];
 
   const SPEND_MATCH = n => n.includes('花費含服務費');
   const IGNORED_COLS = n => n.includes('已花費');
   const DIM_COLS = ['開始日期', '結束日期', '年齡', '性別', '廣告組合', '歸因期間', '廣告'];
 
   const TYPE_CONFIG = {
-    CPM: { unitLabel: 'CPM', planLabel: '預計曝光次數', planExpr: 'B3/B5*1000',
-      ratio: { top: '點擊率', num: 'clicks', den: 'impressions' },
-      cost: { top: 'CPM', den: 'impressions', perMille: true } },
-    CPC: { unitLabel: 'CPC', planLabel: '預計點擊次數', planExpr: 'B3/B5',
-      ratio: { top: '點擊率', num: 'clicks', den: 'impressions' },
-      cost: { top: 'CPC', den: 'clicks' } },
-    LCPC: { unitLabel: 'Link CPC', planLabel: '預計連結點擊次數', planExpr: 'B3/B5',
-      ratio: { top: '點擊率', num: 'linkClicks', den: 'impressions' },
-      cost: { top: 'Link CPC', den: 'linkClicks' } },
-    CPV: { unitLabel: 'CPV', planLabel: '預計觀看次數', planExpr: 'B3/B5',
-      ratio: { top: 'VTR', num: 'video3s', den: 'impressions' },
-      cost: { top: 'CPV', den: 'video3s' } },
-  };
+    CPM: {
+    unitLabel: 'CPM',
+    planLabel: '預計曝光次數',
+    planExpr: 'B3/B5*1000',
+    ratio: { top: '點擊率', num: 'clicks', den: 'impressions' },
+    cost: { top: 'CPM', den: 'impressions', perMille: true }
+  },
+
+  CPC: {
+    unitLabel: 'CPC',
+    planLabel: '預計點擊次數',
+    planExpr: 'B3/B5',
+    ratio: { top: 'CTR', num: 'clicks', den: 'impressions' },
+    cost: { top: 'CPC', den: 'clicks' }
+  },
+
+  LCPC: {
+    unitLabel: 'LCPC',
+    planLabel: '預計連結點擊次數',
+    planExpr: 'B3/B5',
+    ratio: { top: 'LCTR', num: 'linkClicks', den: 'impressions' },
+    cost: { top: 'LCPC', den: 'linkClicks' }
+  },
+
+  CPV: {
+    unitLabel: 'CPV',
+    planLabel: '預計觀看次數',
+    planExpr: 'B3/B5',
+    ratio: { top: 'VTR', num: 'video3s', den: 'impressions' },
+    cost: { top: 'CPV', den: 'video3s' }
+  },
+
+  CPV15: {
+    unitLabel: 'CPV',
+    planLabel: '預計15秒觀看次數',
+    planExpr: 'B3/B5',
+    ratio: { top: 'VTR', num: 'video15s', den: 'impressions' },
+    cost: { top: 'CPV', den: 'video15s' }
+  },
+};
 
   // 每個類型的「優先欄位」(其餘可用欄位接在後面),供 UI 帶入預設勾選與排序
   const TYPE_PRIORITY = {
-    CPM:  ['impressions', 'reach', 'clicks'],
-    CPC:  ['impressions', 'clicks'],
-    LCPC: ['impressions', 'linkClicks'],
-    CPV:  ['impressions', 'reach', 'clicks'],  // 與 CPM 相同,影片觀看數據依偵測順序排在後段
-  };
+  CPM:   ['impressions', 'reach', 'clicks'],
+  CPC:   ['impressions', 'clicks'],
+  LCPC:  ['impressions', 'linkClicks'],
+  CPV:   ['impressions', 'reach', 'clicks'],  // 與 CPM 相同,影片觀看數據依偵測順序排在後段
+  CPV15: ['impressions', 'reach', 'video15s', 'clicks'],
+};
   // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
   function defaultMetricsForType(type, availableKeys) {
     const avail = new Set(availableKeys);
@@ -485,8 +516,8 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const ifErr = e => `IFERROR(${e},0)`;
 
     /* --- 欄位佈局 --- */
-    // 群組欄位順序:指標群 → [比率] → [成本] → 廣告費用
-    const groupKeys = [...selKeys, ...(hasRatio ? ['__ratio'] : []), ...(hasCost ? ['__cost'] : []), '__fee'];
+    // 群組欄位順序:指標群 → 廣告費用 → [比率] → [成本]
+    const groupKeys = [...selKeys, '__fee', ...(hasRatio ? ['__ratio'] : []), ...(hasCost ? ['__cost'] : [])];
     const groupW = groupKeys.length;
     const dStart = 2;
     const blocks = creatives.map((_, i) => dStart + groupW * (i + 1));
