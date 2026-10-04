@@ -554,7 +554,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     set(8, 1, { value: '每日總表', font: { size: 16 } });
     blocks.forEach((bStart, i) => {
       const label = creatives[i].label || creatives[i].raw || `素材${i + 1}`;
-      set(8, bStart, { value: `素材${i + 1}:${label}`, font: { size: 16 } });
+      set(8, bStart, { value: label, font: { size: 16 } });
     });
 
     /* --- 表頭(第 9-10 列) --- */
