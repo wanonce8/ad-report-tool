@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>廣告成效報表產生器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+:root{
+  --ink:#1F2733; --slate:#5C6B7A; --paper:#F2F4F6; --panel:#FFFFFF;
+  --line:#DDE3E9; --accent:#FFD23F; --accent-ink:#6B5400;
+  --green:#2E8B57; --red:#C0392B;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.6;padding-bottom:80px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+header{background:var(--ink);color:#fff;padding:18px 0}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px}
+header .wrap{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+header h1{font-size:20px;font-weight:700;letter-spacing:.05em}
+header h1::before{content:"";display:inline-block;width:10px;height:18px;background:var(--accent);margin-right:10px;vertical-align:-2px}
+header .sub{color:#9FB0C0;font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:22px;overflow:hidden;transition:opacity .25s}
+.card.locked{opacity:.45;pointer-events:none}
+.card-head{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line)}
+.step-no{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--accent);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.card-head h2{font-size:16px;font-weight:700}
+.card-head .hint{font-size:12.5px;color:var(--slate);margin-left:auto}
+.card-body{padding:20px}
+input[type=file]{display:block;width:100%;padding:14px;border:2px dashed var(--line);border-radius:8px;background:#FAFBFC;font-size:14px;cursor:pointer}
+input[type=file]:hover{border-color:var(--slate)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{background:#EFF3F0;border:1px solid #D4E0D8;color:#22543D;border-radius:6px;padding:4px 10px;font-size:13px}
+.chip b{font-weight:700}
+.warn{margin-top:12px;background:#FFF8E6;border:1px solid #F0DFA8;color:#7A5C00;border-radius:8px;padding:10px 14px;font-size:13.5px}
+.error{margin-top:12px;background:#FDEDEB;border:1px solid #EFC2BC;color:var(--red);border-radius:8px;padding:10px 14px;font-size:13.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.field label{display:block;font-size:13px;font-weight:700;color:var(--slate);margin-bottom:5px}
+.field input[type=text],.field input[type=number],.field input[type=date]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-family:inherit}
+.field input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+fieldset{border:none;margin-top:22px}
+legend{font-size:13px;font-weight:700;color:var(--slate);margin-bottom:8px}
+.type-row{display:flex;gap:8px;flex-wrap:wrap}
+.type-opt{flex:1;min-width:120px}
+.type-opt input{position:absolute;opacity:0}
+.type-opt span{display:block;text-align:center;padding:10px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:700;background:#FAFBFC}
+.type-opt small{display:block;font-weight:400;font-size:11.5px;color:var(--slate)}
+.type-opt input:checked+span{background:var(--ink);color:#fff;border-color:var(--ink)}
+.type-opt input:checked+span small{color:var(--accent)}
+.type-opt input:focus-visible+span{outline:2px solid var(--accent)}
+.mode-row{display:flex;gap:8px;margin-bottom:14px}
+.mode-opt{flex:1}
+.mode-opt input{position:absolute;opacity:0}
+.mode-opt span{display:block;text-align:center;padding:10px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:700;background:#FAFBFC}
+.mode-opt small{display:block;font-weight:400;font-size:11.5px;color:var(--slate)}
+.mode-opt input:checked+span{background:var(--ink);color:#fff;border-color:var(--ink)}
+.mode-opt input:checked+span small{color:var(--accent)}
+.mode-opt input:focus-visible+span{outline:2px solid var(--accent)}
+.img-cell{width:40px;height:40px;border:1px dashed var(--line);border-radius:6px;background:#FAFBFC;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--slate);flex-shrink:0;position:relative;overflow:hidden}
+.img-cell:hover{border-color:var(--slate)}
+.img-cell img{width:100%;height:100%;object-fit:cover;border-radius:5px}
+.img-cell .img-x{position:absolute;top:0;right:0;width:14px;height:14px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;line-height:14px;text-align:center;border-radius:0 0 0 5px;display:none}
+.img-cell:hover .img-x{display:block}
+.batch-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.btn-batch{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 14px;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit;font-weight:700}
+.btn-batch:hover{background:var(--paper)}
+.batch-note{font-size:12px;color:var(--slate)}
+.unmatched-box{margin-top:8px;padding:10px 12px;background:#FFF8E6;border:1px solid #F0DFA8;border-radius:8px;font-size:13px}
+.unmatched-box .um-row{display:flex;align-items:center;gap:8px;padding:3px 0}
+.unmatched-box select{border:1px solid var(--line);border-radius:5px;padding:4px 6px;font-size:12.5px;font-family:inherit}
+.composite-toggle{display:flex;align-items:center;gap:10px;margin-top:12px;padding:11px 14px;border:1px solid var(--line);border-radius:8px;background:#FAFBFC;cursor:pointer;font-size:13.5px}
+.composite-toggle input{width:17px;height:17px;accent-color:var(--ink);flex-shrink:0}
+.composite-toggle b{color:var(--ink)}
+.type-info-block{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:#FAFBFC}
+.type-info-block .ti-head{font-size:13px;font-weight:700;color:var(--accent-ink);background:var(--accent);display:inline-block;padding:2px 10px;border-radius:5px;margin-bottom:10px}
+.type-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;border-bottom:2px solid var(--line);padding-bottom:0}
+.type-tab{padding:8px 18px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:#FAFBFC;cursor:pointer;font-weight:700;font-size:13.5px;color:var(--slate);margin-bottom:-2px}
+.type-tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.type-tab:focus-visible{outline:2px solid var(--accent)}
+.creative-type{padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-family:inherit;background:#fff;cursor:pointer}
+.metric-row.missing{background:#FDEDEB}
+.metric-row .miss-tag{font-size:11px;color:var(--red);font-weight:700;margin-left:4px}
+.metric-row .grip{cursor:grab;flex-shrink:0;width:16px;height:22px;padding:0 2px;display:inline-flex;align-items:center;justify-content:center;
+  background-image:radial-gradient(circle, #B0B8C1 1.4px, transparent 1.4px);background-size:5px 5px;background-position:center;background-repeat:repeat;
+  color:transparent;font-size:0;border-radius:3px}
+.metric-row .grip:hover{background-image:radial-gradient(circle, #6B7785 1.4px, transparent 1.4px);background-color:#EEF1F4}
+.metric-row .grip:active{cursor:grabbing}
+.metric-row.dragging{opacity:.4}
+.metric-row.drop-before{box-shadow:inset 0 3px 0 -1px var(--accent)}
+.metric-row.drop-after{box-shadow:inset 0 -3px 0 -1px var(--accent)}
+.metric-tools{display:flex;justify-content:flex-end;margin-bottom:8px}
+.btn-reset{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 12px;font-size:12.5px;color:var(--slate);cursor:pointer;font-family:inherit}
+.btn-reset:hover{background:var(--paper);color:var(--ink)}
+.creative select{border:1px solid var(--line);border-radius:5px;padding:5px 6px;font-size:13px;font-family:inherit;background:#fff;cursor:pointer}
+.creative .cre-miss{font-size:11px;color:var(--red);font-weight:700;white-space:nowrap}
+.type-info-card{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:#FAFBFC}
+.type-info-card h4{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px}
+.type-info-card h4 .badge{display:inline-block;background:var(--ink);color:#fff;border-radius:4px;padding:2px 8px;font-size:11.5px;margin-right:6px}
+.creative .warn-tag{font-size:11px;color:var(--red);font-weight:700;white-space:nowrap}
+.check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+.ck{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px;background:#FAFBFC}
+.ck input{accent-color:var(--ink);width:15px;height:15px}
+.ck .raw{color:var(--slate);font-size:11.5px;margin-left:auto}
+.metric-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 18px}
+.metric-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.metric-row .mname{font-size:13.5px;font-weight:700}
+.metric-row .raw{color:var(--slate);font-size:11.5px;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.metric-row .ord{font-size:11px;color:var(--slate);min-width:18px;text-align:center}
+.metric-row button{border:1px solid var(--line);background:#fff;border-radius:5px;width:26px;height:26px;cursor:pointer;color:var(--slate)}
+.metric-row button:hover:not(:disabled){background:var(--paper)}
+.metric-row button:disabled{opacity:.35;cursor:default}
+.metric-row.off .mname,.metric-row.off .raw{opacity:.4}
+.creative{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.creative:last-child{border-bottom:none}
+.creative .tag{font-size:11.5px;color:var(--slate);min-width:48px}
+.creative input[type=text]{flex:1;padding:6px 9px;border:1px solid var(--line);border-radius:6px;font-size:13.5px;font-family:inherit}
+.creative button{border:1px solid var(--line);background:#fff;border-radius:5px;width:26px;height:26px;cursor:pointer;color:var(--slate)}
+.creative button:hover{background:var(--paper)}
+.blueprint{margin-top:22px;background:#FAFBFC;border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.blueprint h3{font-size:12.5px;color:var(--slate);font-weight:700;margin-bottom:8px;letter-spacing:.08em}
+.bp-row{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.bp{font-size:11.5px;padding:3px 8px;border-radius:4px;border:1px solid var(--line);background:#fff;white-space:nowrap}
+.bp.dim{background:var(--ink);color:#fff;border-color:var(--ink)}
+.bp.calc{background:var(--accent);color:var(--accent-ink);border-color:#E8BD2A;font-weight:700}
+.bp.fee{background:#EDEFF2;font-weight:700}
+.bp-sep{color:var(--slate);font-size:12px;padding:0 4px;font-weight:700}
+.btn-main{display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:var(--accent-ink);border:none;border-radius:8px;padding:13px 30px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-main:hover{filter:brightness(.96)}
+.btn-main:disabled{background:var(--line);color:var(--slate);cursor:not-allowed}
+.btn-main:focus-visible{outline:3px solid var(--ink)}
+.gen-summary{font-size:13.5px;color:var(--slate);margin-bottom:14px}
+.done{margin-top:14px;color:var(--green);font-weight:700;font-size:14px}
+footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>廣告成效報表產生器</h1>
+    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / CPLC / CPV</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 步驟 1 -->
+  <section class="card" id="card1">
+    <div class="card-head"><div class="step-no">1</div><h2 id="step1Title">上傳檔案</h2><span class="hint">Facebook 廣告管理員匯出的 .xlsx</span></div>
+    <div class="card-body">
+      <div class="mode-row">
+        <label class="mode-opt"><input type="radio" name="wmode" value="new" checked><span>建立新報表<small>上傳 Raw Data,從零設定</small></span></label>
+        <label class="mode-opt"><input type="radio" name="wmode" value="update"><span>更新報表<small>舊報表 + 最新全量 Raw Data</small></span></label>
+      </div>
+      <div id="newModeBox">
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </div>
+      <div id="updateModeBox" style="display:none">
+        <div class="field" style="margin-bottom:10px"><label>① 上週的舊報表(本工具產出)</label>
+          <input type="file" id="oldReportInput" accept=".xlsx"></div>
+        <div class="field"><label>② 最新的全量 Raw Data</label>
+          <input type="file" id="rawUpdateInput" accept=".xlsx,.xls"></div>
+        <div id="restoreStatus"></div>
+      </div>
+      <div id="parseResult"></div>
+    </div>
+  </section>
+
+  <!-- 步驟 2 -->
+  <section class="card locked" id="card2">
+    <div class="card-head"><div class="step-no">2</div><h2>報表設定</h2></div>
+    <div class="card-body">
+
+      <fieldset>
+        <legend>報表類型</legend>
+        <div class="type-row" id="typeRow">
+          <label class="type-opt"><input type="radio" name="rtype" value="CPM" checked><span>CPM<small>費用 ÷ 曝光 × 1000</small></span></label>
+          <label class="type-opt"><input type="radio" name="rtype" value="CPC"><span>CPC<small>費用 ÷ 點擊次數</small></span></label>
+          <label class="type-opt"><input type="radio" name="rtype" value="CPLC"><span>CPLC<small>費用 ÷ 連結點擊</small></span></label>
+          <label class="type-opt"><input type="radio" name="rtype" value="CPV"><span>CPV<small>費用 ÷ 3秒觀看</small></span></label>
+        </div>
+        <label class="composite-toggle"><input type="checkbox" id="compositeChk">
+          <span><b>複合目標報表</b>：不同素材使用不同類型,依類型分別產出到不同分頁</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>走期</legend>
+        <div class="grid">
+          <div class="field"><label for="fStart">走期開始</label><input type="date" id="fStart"></div>
+          <div class="field"><label for="fEnd">走期結束</label><input type="date" id="fEnd"></div>
+        </div>
+      </fieldset>
+
+      <!-- 單一模式:一組基本資訊 -->
+      <fieldset id="singleInfo">
+        <legend>基本資訊</legend>
+        <div class="grid">
+          <div class="field"><label for="fName">名稱</label><input type="text" id="fName" placeholder="例:OTV_Post1_Video"></div>
+          <div class="field"><label for="fBudget">預算 (TWD)</label><input type="number" id="fBudget" min="0" placeholder="例:28000"></div>
+          <div class="field"><label for="fUnit" id="unitLabel">CPM 單價</label><input type="number" id="fUnit" min="0" step="0.01" placeholder="例:80"></div>
+        </div>
+      </fieldset>
+
+      <!-- 複合模式:每類型一組基本資訊 -->
+      <fieldset id="compositeInfo" style="display:none">
+        <legend>各分頁基本資訊(僅顯示有素材使用的分頁)</legend>
+        <div id="typeInfoList"></div>
+      </fieldset>
+
+      <!-- 單一模式:單一欄位清單 -->
+      <fieldset id="singleMetricBox">
+        <legend>產出欄位(依 Raw Data 偵測,↑↓ 調整報表欄位順序)</legend>
+        <div id="metricList" class="metric-cols"></div>
+      </fieldset>
+
+      <!-- 複合模式:類型頁籤 + 各自欄位清單 -->
+      <fieldset id="compositeMetricBox" style="display:none">
+        <legend>各類型產出欄位(切換頁籤分別設定,拖曳握把或 ↑↓ 調整順序)</legend>
+        <div class="type-tabs" id="metricTabs"></div>
+        <div id="metricToolsComposite"></div>
+        <div id="metricListComposite" class="metric-cols"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>素材(來自「廣告」欄,可改顯示名稱與順序;點縮圖格可上傳/更換上刊圖)</legend>
+        <div class="batch-bar">
+          <button type="button" class="btn-batch" id="btnBatchImg">📁 批次上傳上刊圖</button>
+          <span class="batch-note">一次選多張,依檔名自動配對素材(檔名=素材名最準)</span>
+          <input type="file" id="batchImgInput" accept="image/png,image/jpeg" multiple style="display:none">
+          <input type="file" id="singleImgInput" accept="image/png,image/jpeg" style="display:none">
+        </div>
+        <div id="unmatchedBox"></div>
+        <div id="creativeList"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>每日總表下方附加區塊</legend>
+        <div class="check-grid">
+          <label class="ck"><input type="checkbox" id="secInterest" checked>興趣群組(廣告組合)</label>
+          <label class="ck"><input type="checkbox" id="secGender" checked>性別</label>
+          <label class="ck"><input type="checkbox" id="secAge" checked>年齡</label>
+        </div>
+      </fieldset>
+
+      <div class="blueprint">
+        <h3>報表欄位藍圖</h3>
+        <div class="bp-row" id="bpRow"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 步驟 3 -->
+  <section class="card locked" id="card3">
+    <div class="card-head"><div class="step-no">3</div><h2>產出報表</h2></div>
+    <div class="card-body">
+      <div class="gen-summary" id="genSummary"></div>
+      <button class="btn-main" id="btnGen">下載 Excel 報表</button>
+      <div id="genResult"></div>
+    </div>
+  </section>
+
+</main>
+<footer>單檔工具 · 資料只在你的瀏覽器處理,不會上傳到任何伺服器</footer>
+
+<script>
+/* 廣告成效報表產生引擎 — 瀏覽器(ExcelJS CDN)與 Node 共用 */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.ReportGen = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+
+  const METRIC_DEFS = [
+    { key: 'impressions', top: '廣告', bottom: '呈現次數', match: n => n.includes('曝光次數') },
+    { key: 'reach',       top: '每日', bottom: '觸及人數', match: n => n.includes('觸及人數') },
+    { key: 'linkClicks',  top: '連結', bottom: '點擊次數', match: n => n.includes('連結點擊次數') },
+    { key: 'clicks',      top: '廣告', bottom: '點擊次數', match: n => n.includes('點擊次數') && n.includes('全部') },
+    { key: 'pageLikes',   top: '加入', bottom: '粉絲人數', match: n => n.includes('粉絲專頁的讚') },
+    { key: 'postLikes',   top: '貼文', bottom: '按讚次數', match: n => n.includes('貼文的讚') },
+    { key: 'comments',    top: '貼文', bottom: '留言次數', match: n => n.includes('貼文留言') },
+    { key: 'shares',      top: '貼文', bottom: '分享次數', match: n => n.includes('貼文分享') },
+    { key: 'video3s',     top: '影片觀看', bottom: '3秒', match: n => /3\s*秒/.test(n) || /thruplay/i.test(n) },
+    { key: 'video25',     top: '影片觀看', bottom: '25%',  match: n => /(影片|觀看|播放)/.test(n) && /25\s*%/.test(n) },
+    { key: 'video50',     top: '影片觀看', bottom: '50%',  match: n => /(影片|觀看|播放)/.test(n) && /50\s*%/.test(n) },
+    { key: 'video75',     top: '影片觀看', bottom: '75%',  match: n => /(影片|觀看|播放)/.test(n) && /75\s*%/.test(n) },
+    { key: 'video100',    top: '影片觀看', bottom: '100%', match: n => /(影片|觀看|播放)/.test(n) && /100\s*%/.test(n) },
+  ];
+
+  const SPEND_MATCH = n => n.includes('花費含服務費');
+  const IGNORED_COLS = n => n.includes('已花費');
+  const DIM_COLS = ['開始日期', '結束日期', '年齡', '性別', '廣告組合', '歸因期間', '廣告'];
+
+  const TYPE_CONFIG = {
+    CPM: { unitLabel: 'CPM', planLabel: '預計曝光次數', planExpr: 'B3/B5*1000',
+      ratio: { top: '點擊率', num: 'clicks', den: 'impressions' },
+      cost: { top: 'CPM', den: 'impressions', perMille: true } },
+    CPC: { unitLabel: 'CPC', planLabel: '預計點擊次數', planExpr: 'B3/B5',
+      ratio: { top: '點擊率', num: 'clicks', den: 'impressions' },
+      cost: { top: 'CPC', den: 'clicks' } },
+    CPLC: { unitLabel: 'Link CPC', planLabel: '預計連結點擊次數', planExpr: 'B3/B5',
+      ratio: { top: '點擊率', num: 'linkClicks', den: 'impressions' },
+      cost: { top: 'Link CPC', den: 'linkClicks' } },
+    CPV: { unitLabel: 'CPV', planLabel: '預計觀看次數', planExpr: 'B3/B5',
+      ratio: { top: 'VTR', num: 'video3s', den: 'impressions' },
+      cost: { top: 'CPV', den: 'video3s' } },
+  };
+
+  // 每個類型的「優先欄位」(其餘可用欄位接在後面),供 UI 帶入預設勾選與排序
+  const TYPE_PRIORITY = {
+    CPM:  ['impressions', 'reach', 'clicks'],
+    CPC:  ['impressions', 'clicks'],
+    CPLC: ['impressions', 'linkClicks'],
+    CPV:  ['impressions', 'reach', 'clicks'],  // 與 CPM 相同,影片觀看數據依偵測順序排在後段
+  };
+  // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
+  function defaultMetricsForType(type, availableKeys) {
+    const avail = new Set(availableKeys);
+    const prio = (TYPE_PRIORITY[type] || []).filter(k => avail.has(k));
+    const rest = availableKeys.filter(k => !prio.includes(k));
+    return [...prio, ...rest];
+  }
+
+  /* ---------- Raw Data 解析 ---------- */
+  function parseRaw(rows) {
+    let headerIdx = -1;
+    for (let i = 0; i < Math.min(rows.length, 8); i++) {
+      if ((rows[i] || []).some(v => String(v ?? '').trim() === '開始日期')) { headerIdx = i; break; }
+    }
+    if (headerIdx < 0) throw new Error('找不到表頭列(需含「開始日期」欄)');
+    const headers = (rows[headerIdx] || []).map(v => String(v ?? '').trim());
+    const idx = {};
+    headers.forEach((h, i) => { if (h) idx[h] = i; });
+    const col = name => {
+      const keys = Object.keys(idx);
+      let k = keys.find(h => h === name);
+      if (k == null) k = keys.find(h => h.includes(name) && !DIM_COLS.some(d => d !== name && h === d));
+      return k == null ? -1 : idx[k];
+    };
+    const cDate = col('開始日期'), cAge = col('年齡'), cGender = col('性別'),
+          cAdset = col('廣告組合'), cAd = col('廣告');
+
+    const metricCols = [];
+    const used = new Set();
+    for (const def of METRIC_DEFS) {
+      const hit = headers.findIndex((h, i) => h && !used.has(i) && def.match(h));
+      if (hit >= 0) { used.add(hit); metricCols.push({ ...def, colIdx: hit, rawName: headers[hit], known: true }); }
+    }
+    let spendCol = headers.findIndex(h => h && SPEND_MATCH(h));
+    headers.forEach((h, i) => {
+      if (!h || used.has(i) || i === spendCol) return;
+      if (DIM_COLS.some(d => h.includes(d)) || IGNORED_COLS(h) || SPEND_MATCH(h)) return;
+      const hasNum = rows.slice(headerIdx + 1, headerIdx + 40).some(r => typeof (r || [])[i] === 'number');
+      if (hasNum) metricCols.push({ key: 'x_' + i, top: h, bottom: '', colIdx: i, rawName: h, known: false });
+    });
+
+    const isDateVal = v => v != null && typeof v.getFullYear === 'function' && !isNaN(v.getTime());
+    const records = [];
+    let skipped = 0;
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const d = r[cDate];
+      if (!isDateVal(d)) { if (r.some(v => v != null && v !== '')) skipped++; continue; }
+      const rec = {
+        date: dateKey(d),
+        age: str(r[cAge]), gender: str(r[cGender]),
+        adset: str(r[cAdset]), ad: str(r[cAd]),
+        spend: num(spendCol >= 0 ? r[spendCol] : 0),
+        values: {},
+      };
+      for (const m of metricCols) rec.values[m.key] = num(r[m.colIdx]);
+      records.push(rec);
+    }
+    const uniq = a => [...new Set(a.filter(Boolean))];
+    return {
+      records, metricCols, hasSpend: spendCol >= 0, skippedRows: skipped,
+      ads: uniq(records.map(r => r.ad)),
+      adsets: uniq(records.map(r => r.adset)),
+      genders: uniq(records.map(r => r.gender)).sort(),
+      ages: uniq(records.map(r => r.age)).sort(),
+      dateMin: records.length ? records.map(r => r.date).sort()[0] : null,
+      dateMax: records.length ? records.map(r => r.date).sort().slice(-1)[0] : null,
+    };
+  }
+
+  function str(v) { return v == null ? '' : String(v).trim(); }
+  function num(v) {
+    if (typeof v === 'number') return isFinite(v) ? v : 0;
+    const n = parseFloat(String(v ?? '').replace(/,/g, '')); return isFinite(n) ? n : 0;
+  }
+  function dateKey(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function keyToDate(k) { const [y, m, d] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); }
+  function colLetter(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - 1 - m) / 26; } return s; }
+  function listDays(start, end) {
+    const out = []; let d = keyToDate(start); const e = keyToDate(end);
+    while (d <= e) { out.push(d.toISOString().slice(0, 10)); d = new Date(d.getTime() + 86400000); }
+    return out;
+  }
+
+  /* ---------- 彙總 ---------- */
+  function aggregate(records, start, end, adWhitelist) {
+    const byAdDate = new Map(), byAdset = new Map(), byGender = new Map(), byAge = new Map();
+    const allow = adWhitelist ? new Set(adWhitelist) : null; // null = 全部素材
+    const add = (map, key, rec) => {
+      if (!key) key = '未知';
+      if (!map.has(key)) map.set(key, { spend: 0, values: {} });
+      const t = map.get(key); t.spend += rec.spend;
+      for (const k in rec.values) t.values[k] = (t.values[k] || 0) + rec.values[k];
+    };
+    for (const rec of records) {
+      if (rec.date < start || rec.date > end) continue;
+      const adKey = rec.ad || '未命名素材';
+      // byAdDate 保留全部素材(buildSheet 會自行挑選);受眾三表僅統計白名單內素材
+      if (!byAdDate.has(adKey)) byAdDate.set(adKey, new Map());
+      add(byAdDate.get(adKey), rec.date, rec);
+      if (allow && !allow.has(adKey)) continue;
+      add(byAdset, rec.adset, rec);
+      add(byGender, rec.gender, rec);
+      add(byAge, rec.age, rec);
+    }
+    return { byAdDate, byAdset, byGender, byAge };
+  }
+
+  /* ---------- 樣式(比照報表參考) ---------- */
+  const DKBLUE = 'FF1F497D', YELLOW = 'FFFFFF00', WHITE = 'FFFFFFFF', BLACK = 'FF000000', RED = 'FFFF0000', GREY = 'FF808080';
+  const F = o => ({ name: '微軟正黑體', size: 12, ...(o || {}) });
+  const fill = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+  const bd = (t, b, l, r) => {
+    const o = {};
+    if (t) o.top = { style: t }; if (b) o.bottom = { style: b };
+    if (l) o.left = { style: l }; if (r) o.right = { style: r };
+    return o;
+  };
+  const FMT = {
+    metric: '#,##0_);[Red](#,##0)', ratio: '0.00%', cost: '0.00_ ', fee: '#,##0',
+    date: 'mm-dd-yy', budget: '"NT$"#,##0_);("NT$"#,##0)', plan: '0_);[Red](0)', unit: '0.0_);[Red](0.0)',
+  };
+
+  /* ---------- 產表 ---------- */
+  function buildSheet(wb, ExcelJS, parsed, config, sheetName) {
+    const tc = TYPE_CONFIG[config.type];
+    if (!tc) throw new Error('未知的報表類型: ' + config.type);
+
+    const selected = config.metrics
+      .map(k => parsed.metricCols.find(m => m.key === k)).filter(Boolean);
+    const selKeys = selected.map(m => m.key);
+    const hasRatio = selKeys.includes(tc.ratio.num) && selKeys.includes(tc.ratio.den);
+    const hasCost = parsed.hasSpend && selKeys.includes(tc.cost.den);
+    const days = listDays(config.startDate, config.endDate);
+    const creatives = config.creatives.filter(c => c.include !== false);
+    // 受眾彙總只統計本分頁(本次 creatives)的素材;單一模式即全部素材
+    const adWhitelist = creatives.map(c => c.raw);
+    const agg = aggregate(parsed.records, config.startDate, config.endDate, adWhitelist);
+
+    // 總計值(供素材總計估算與自動欄寬)
+    const creTotals = creatives.map(c => {
+      const t = { spend: 0, values: {} };
+      for (const d of (agg.byAdDate.get(c.raw) || new Map()).values()) {
+        t.spend += d.spend;
+        for (const k in d.values) t.values[k] = (t.values[k] || 0) + d.values[k];
+      }
+      return t;
+    });
+    const grand = { spend: 0, values: {} };
+    for (const t of creTotals) {
+      grand.spend += t.spend;
+      for (const k in t.values) grand.values[k] = (grand.values[k] || 0) + t.values[k];
+    }
+
+    const ws = wb.addWorksheet(sheetName || config.type, { views: [{ state: 'frozen', xSplit: 1, ySplit: 10 }] });
+
+    const set = (r, c, opt) => {
+      const cell = ws.getCell(r, c);
+      if (opt.formula != null) cell.value = { formula: opt.formula };
+      else if (opt.value !== undefined) cell.value = opt.value;
+      cell.font = F(opt.font);
+      if (opt.numFmt) cell.numFmt = opt.numFmt;
+      if (opt.fill) cell.fill = opt.fill;
+      if (opt.border) cell.border = opt.border;
+      cell.alignment = { vertical: 'middle', ...(opt.h ? { horizontal: opt.h } : {}) };
+      return cell;
+    };
+    const ifErr = e => `IFERROR(${e},0)`;
+
+    /* --- 欄位佈局 --- */
+    // 群組欄位順序:指標群 → [比率] → [成本] → 廣告費用
+    const groupKeys = [...selKeys, ...(hasRatio ? ['__ratio'] : []), ...(hasCost ? ['__cost'] : []), '__fee'];
+    const groupW = groupKeys.length;
+    const dStart = 2;
+    const blocks = creatives.map((_, i) => dStart + groupW * (i + 1));
+    const lastCol = dStart + groupW * (creatives.length + 1) - 1;
+    const gCol = (start, key) => start + groupKeys.indexOf(key);
+    const boundaries = new Set([1, dStart, ...blocks]); // 左 medium 框線位置
+    const vSide = c => [boundaries.has(c) ? 'medium' : 'thin', c === lastCol ? 'medium' : 'thin'];
+
+    /* --- 頂部資訊區(B:D 合併) --- */
+    const fmtRange = `${+config.startDate.slice(5, 7)}/${+config.startDate.slice(8)}-${+config.endDate.slice(5, 7)}/${+config.endDate.slice(8)}`;
+    const info = [
+      ['名稱', { value: config.name || '' }],
+      ['日期', { value: fmtRange }],
+      ['預算', { value: num(config.budget), numFmt: FMT.budget, font: { size: 10, color: { argb: RED } } }],
+      [tc.planLabel, { formula: ifErr(tc.planExpr), numFmt: FMT.plan }],
+      [tc.unitLabel, { value: num(config.unitPrice), numFmt: FMT.unit }],
+    ];
+    info.forEach((row, i) => {
+      const r = i + 1;
+      set(r, 1, { value: row[0], font: { bold: true }, border: bd('thin', 'thin', 'thin', 'thin') });
+      for (let c = 2; c <= 4; c++) set(r, c, { border: bd('thin', 'thin', 'thin', 'thin') });
+      set(r, 2, { ...row[1], font: { size: 10, ...(row[1].font || {}) }, border: bd('thin', 'thin', 'thin', 'thin'), h: 'center' });
+      ws.mergeCells(r, 2, r, 4);
+    });
+
+    /* --- 區塊標題(第 8 列,16pt 無底色) --- */
+    set(8, 1, { value: '每日總表', font: { size: 16 } });
+    blocks.forEach((bStart, i) => {
+      const label = creatives[i].label || creatives[i].raw || `素材${i + 1}`;
+      set(8, bStart, { value: `素材${i + 1}:${label}`, font: { size: 16 } });
+    });
+
+    /* --- 表頭(第 9-10 列) --- */
+    const headText = k => k === '__ratio' ? [tc.ratio.top, ''] : k === '__cost' ? [tc.cost.top, ''] :
+      k === '__fee' ? ['廣告費用', ''] : (m => [m.top, m.bottom])(selected.find(m => m.key === k));
+    const headGroup = (start, dark, feeAsTwoLine) => {
+      groupKeys.forEach((k, i) => {
+        const c = start + i;
+        let [top, bottom] = headText(k);
+        if (k === '__fee' && feeAsTwoLine) [top, bottom] = ['廣告', '費用'];
+        const [l, r] = vSide(c);
+        const style = dark ? { font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE) } : { font: { bold: true } };
+        set(9, c, { value: top, ...style, border: bd('medium', 'thin', l, r), h: 'center' });
+        set(10, c, { value: bottom || undefined, ...style, border: bd('thin', 'thin', l, r), h: 'center' });
+        if (!bottom) ws.mergeCells(9, c, 10, c);
+      });
+    };
+    const [al, ar] = vSide(1);
+    set(9, 1, { value: '日期', font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'thin', al, ar), h: 'center' });
+    set(10, 1, { fill: fill(DKBLUE), border: bd('thin', 'thin', al, ar) });
+    ws.mergeCells(9, 1, 10, 1);
+    headGroup(dStart, true, false);
+    blocks.forEach(b => headGroup(b, false, true));
+
+    /* --- 每日資料列 --- */
+    const r0 = 11;
+    const cellFor = (k, start) => colLetter(gCol(start, k));
+    days.forEach((day, i) => {
+      const r = r0 + i;
+      // 各素材該日是否有資料
+      const presence = blocks.map((_, bi) => (agg.byAdDate.get(creatives[bi].raw) || new Map()).has(day));
+      const dailyHasData = presence.some(Boolean);
+      // 日期欄:整日無資料則反灰
+      set(r, 1, dailyHasData
+        ? { value: keyToDate(day), numFmt: FMT.date, border: bd('thin', 'thin', ...vSide(1)) }
+        : { fill: fill(GREY), border: bd('thin', 'thin', ...vSide(1)) });
+      blocks.forEach((bStart, bi) => {
+        const data = (agg.byAdDate.get(creatives[bi].raw) || new Map()).get(day);
+        const has = presence[bi];
+        groupKeys.forEach((k, j) => {
+          const c = bStart + j, [l, rr] = vSide(c), border = bd('thin', 'thin', l, rr);
+          const greyFill = has ? undefined : fill(GREY);
+          // 非走期整列反灰:比率/成本欄保留 0 值但儲存格也反灰;數據欄與費用欄反灰留空
+          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, bStart)}${r}/${cellFor(tc.ratio.den, bStart)}${r}`), numFmt: FMT.ratio, fill: greyFill, border });
+          else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', bStart)}${r}/${cellFor(tc.cost.den, bStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, fill: greyFill, border });
+          else if (!has) set(r, c, { fill: fill(GREY), border });
+          else if (k === '__fee') set(r, c, { value: Math.round(data.spend * 100) / 100, numFmt: FMT.fee, border });
+          else set(r, c, { value: data.values[k] || 0, numFmt: FMT.metric, border });
+        });
+      });
+      groupKeys.forEach((k, j) => {
+        const c = dStart + j, [l, rr] = vSide(c), border = bd('thin', 'thin', l, rr);
+        const greyFill = dailyHasData ? undefined : fill(GREY);
+        if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: FMT.ratio, fill: greyFill, border });
+        else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, fill: greyFill, border });
+        else if (!dailyHasData) set(r, c, { fill: fill(GREY), border });
+        else set(r, c, { formula: blocks.map(b => `${cellFor(k, b)}${r}`).join('+') || '0', numFmt: k === '__fee' ? FMT.fee : FMT.metric, border });
+      });
+    });
+
+    /* --- 素材總計 / 總預算 / 總執行率 --- */
+    const rEnd = r0 + days.length - 1, rTot = rEnd + 1;
+    set(rTot, 1, { value: '素材總計', font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', ...vSide(1)) });
+    const totGroup = start => groupKeys.forEach((k, j) => {
+      const c = start + j, [l, rr] = vSide(c), border = bd('medium', 'medium', l, rr);
+      const style = { font: { color: { argb: WHITE } }, fill: fill(DKBLUE), border };
+      if (k === '__ratio') set(rTot, c, { formula: ifErr(`${cellFor(tc.ratio.num, start)}${rTot}/${cellFor(tc.ratio.den, start)}${rTot}`), numFmt: FMT.ratio, ...style });
+      else if (k === '__cost') set(rTot, c, { formula: ifErr(`${cellFor('__fee', start)}${rTot}/${cellFor(tc.cost.den, start)}${rTot}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
+      else set(rTot, c, { formula: `SUM(${colLetter(c)}${r0}:${colLetter(c)}${rEnd})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
+    });
+    totGroup(dStart);
+    blocks.forEach(b => totGroup(b));
+    set(rTot + 1, 1, { value: '總預算', font: { bold: true }, fill: fill(YELLOW), border: bd('medium', null, 'medium', 'thin') });
+    set(rTot + 1, 2, { formula: 'B3', numFmt: FMT.fee, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('medium', null, 'thin', 'medium'), h: 'center' });
+    set(rTot + 2, 1, { value: '總執行率', font: { bold: true }, fill: fill(YELLOW), border: bd('thin', 'medium', 'medium', 'thin') });
+    set(rTot + 2, 2, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/B${rTot + 1}`), numFmt: FMT.ratio, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('thin', 'medium', 'thin', 'medium'), h: 'center' });
+
+    /* --- 興趣群組 / 性別 / 年齡(欄位鏡射每日總表) --- */
+    let rs = rTot + 4;
+    const audLast = dStart + groupW - 1;
+    const audSide = c => [c === 1 || c === dStart ? 'medium' : 'thin', c === audLast ? 'medium' : 'thin'];
+    const sectionDefs = [
+      ['interest', '興趣群組', agg.byAdset, parsed.adsets],
+      ['gender', '性別', agg.byGender, null],
+      ['age', '年齡', agg.byAge, null],
+    ];
+    for (const [key, title, map, order] of sectionDefs) {
+      if (!config.sections[key]) continue;
+      const keys = order ? order.filter(k => map.has(k)).concat([...map.keys()].filter(k => !order.includes(k)))
+                         : [...map.keys()].sort();
+      if (!keys.length) continue;
+      // 表頭兩列
+      const [tl, tr] = audSide(1);
+      set(rs, 1, { value: title, font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'thin', tl, tr), h: 'center' });
+      set(rs + 1, 1, { fill: fill(DKBLUE), border: bd('thin', 'thin', tl, tr) });
+      ws.mergeCells(rs, 1, rs + 1, 1);
+      groupKeys.forEach((k, j) => {
+        const c = dStart + j, [l, rr] = audSide(c);
+        const [top, bottom] = headText(k);
+        const style = { font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE) };
+        set(rs, c, { value: top, ...style, border: bd('medium', 'thin', l, rr), h: 'center' });
+        set(rs + 1, c, { value: bottom || undefined, ...style, border: bd('thin', 'thin', l, rr), h: 'center' });
+        if (!bottom) ws.mergeCells(rs, c, rs + 1, c);
+      });
+      // 資料列
+      let r = rs + 2;
+      for (const gk of keys) {
+        const d = map.get(gk);
+        set(r, 1, { value: gk, border: bd('thin', 'thin', ...audSide(1)) });
+        groupKeys.forEach((k, j) => {
+          const c = dStart + j, [l, rr] = audSide(c), border = bd('thin', 'thin', l, rr);
+          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: FMT.ratio, border });
+          else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, border });
+          else if (k === '__fee') set(r, c, { value: Math.round(d.spend * 100) / 100, numFmt: FMT.fee, border });
+          else set(r, c, { value: d.values[k] || 0, numFmt: FMT.metric, border });
+        });
+        r++;
+      }
+      // 總計列
+      set(r, 1, { value: '總計', font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', ...audSide(1)) });
+      groupKeys.forEach((k, j) => {
+        const c = dStart + j, [l, rr] = audSide(c);
+        const style = { font: { color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', l, rr) };
+        if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: FMT.ratio, ...style });
+        else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
+        else set(r, c, { formula: `SUM(${colLetter(c)}${rs + 2}:${colLetter(c)}${r - 1})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
+      });
+      rs = r + 2;
+    }
+
+    /* --- 欄寬(依內容自動調整)與列高 --- */
+    const textW = s => [...String(s ?? '')].reduce((a, ch) => a + (ch.charCodeAt(0) > 255 ? 2.1 : 1.15), 0);
+    const numW = (v, dec) => (Math.round(Math.abs(v || 0)).toLocaleString('en-US').length + (dec ? dec + 1 : 0)) * 1.3 + 2.5;
+    const colMax = {};
+    const noteW = (c, u) => { if (u > (colMax[c] || 0)) colMax[c] = u; };
+    const noteGroup = (start, totals) => groupKeys.forEach((k, j) => {
+      const c = start + j;
+      const [top, bottom] = headText(k);
+      noteW(c, textW(top)); noteW(c, textW(bottom));
+      if (k === '__ratio') noteW(c, 8);
+      else if (k === '__cost') {
+        const den = totals.values[tc.cost.den] || 0;
+        noteW(c, numW(den ? totals.spend / den * (tc.cost.perMille ? 1000 : 1) : 0, 2));
+      }
+      else if (k === '__fee') noteW(c, numW(totals.spend));
+      else noteW(c, numW(totals.values[k] || 0));
+    });
+    noteGroup(dStart, grand);
+    blocks.forEach((b, i) => noteGroup(b, creTotals[i]));
+    // A 欄:日期、區段標籤與受眾名稱
+    noteW(1, textW('預計連結點擊次數'));
+    for (const [key, , map] of sectionDefs) {
+      if (!config.sections[key]) continue;
+      for (const k of map.keys()) noteW(1, textW(k));
+    }
+    ws.getColumn(1).width = Math.max(20.2, Math.min(36, (colMax[1] || 0) + 2));
+    for (let cc = 2; cc <= lastCol; cc++)
+      ws.getColumn(cc).width = Math.max(10.5, Math.min(30, (colMax[cc] || 0) + 1.5));
+    const lastRow = rs;
+    for (let rr = 1; rr <= lastRow; rr++) ws.getRow(rr).height = rr === 8 ? 24 : 18;
+
+    /* --- 上刊圖:最大化填滿第 1~8 列,底部貼近數據表頭框線、右緣貼齊廣告費用欄右框線
+       使用雙錨點(twoCellAnchor):右下角直接錨定在「費用欄右緣 × 第9列上緣」的儲存格邊界,
+       由 Excel 保證精確貼齊;左上角以欄寬模型估算(誤差僅輕微影響寬度) --- */
+    const EMU = 9525;                            // 1px = 9525 EMU
+    const colPx = c => (ws.getColumn(c).width || 10.5) * 7 + 5;
+    const ROW_PX = 24, ROW8_PX = 32;             // 18pt=24px, 24pt=32px
+    const FULL_H = 7 * ROW_PX + ROW8_PX;         // 第1~8列總高 200px
+    const GAP = 2;                               // 底部與表頭框線間距
+    blocks.forEach((bStart, i) => {
+      const img = creatives[i] && creatives[i].image;
+      if (!img || !img.base64) return;
+      const blockEnd = bStart + groupW - 1;      // 廣告費用欄(1-based)
+      const nCols = Math.min(3, groupW);
+      let boxW = 0;
+      for (let c = blockEnd - nCols + 1; c <= blockEnd; c++) boxW += colPx(c);
+      const iw = img.width || 400, ih = img.height || 600;
+      let h = FULL_H - GAP;                      // 高度撐好撐滿(198px)
+      let w = h * iw / ih;
+      if (w > boxW) { w = boxW; h = w * ih / iw; }  // 過寬的圖以三欄框寬為限
+      // 右下角錨點:費用欄右緣 = 下一欄左緣;底部 = 第8列內距頂 (ROW8_PX-GAP) px
+      const br = { nativeCol: blockEnd, nativeColOff: 0, nativeRow: 7, nativeRowOff: Math.round((ROW8_PX - GAP) * EMU) };
+      // 左上角:自費用欄右緣往左回推 w、自底部往上回推 h(以模型估算)
+      let remain = w, tlCol = blockEnd;
+      while (tlCol > 1 && remain > colPx(tlCol)) { remain -= colPx(tlCol); tlCol--; }
+      const offX = Math.max(0, colPx(tlCol) - remain);
+      const topPx = Math.max(0, FULL_H - GAP - h);   // 距工作表頂端
+      let rowIdx = 0, offY = topPx;                  // 第1~7列各24px
+      while (rowIdx < 7 && offY >= ROW_PX) { offY -= ROW_PX; rowIdx++; }
+      const tl = { nativeCol: tlCol - 1, nativeColOff: Math.round(offX * EMU), nativeRow: rowIdx, nativeRowOff: Math.round(offY * EMU) };
+      const ext2 = (img.extension || 'png').toLowerCase().replace('jpg', 'jpeg');
+      const id = wb.addImage({ base64: img.base64, extension: ext2 });
+      ws.addImage(id, { tl, br, editAs: 'oneCell' });
+    });
+
+    return buildWarnings(parsed, tc, hasRatio, hasCost).map(w => sheetName ? `[${sheetName}] ${w}` : w);
+  }
+
+  // 外層:依設定產出單一或多分頁活頁簿
+  function buildWorkbook(ExcelJS, parsed, config) {
+    const wb = new ExcelJS.Workbook();
+    let warnings = [];
+    if (!config.composite) {
+      warnings = buildSheet(wb, ExcelJS, parsed, config, config.type);
+    } else {
+      // 複合模式:依素材指定的「分頁」分組(分頁隸屬某類型;預設分頁名=類型名)
+      const order = ['CPM', 'CPC', 'CPLC', 'CPV'];
+      const creatives = config.creatives.filter(c => c.include !== false);
+      if (!creatives.length) throw new Error('複合模式下找不到任何素材');
+      // 分頁清單:依類型順序,同類型內依素材出現順序
+      const pages = [];
+      for (const t of order) {
+        for (const c of creatives) {
+          if ((c.type || config.type) !== t) continue;
+          const pg = c.page || t;
+          if (!pages.some(p => p.page === pg && p.type === t)) pages.push({ page: pg, type: t });
+        }
+      }
+      if (!pages.length) throw new Error('複合模式下找不到任何已指定類型的素材');
+      const usedNames = new Set();
+      for (const { page, type: t } of pages) {
+        const typeCfg = (config.typeConfigs && config.typeConfigs[t]) || {};
+        const pageCfg = (config.pageConfigs && config.pageConfigs[page]) || typeCfg;
+        const sheetCfg = {
+          type: t,
+          composite: false,
+          name: pageCfg.name != null ? pageCfg.name : config.name,
+          budget: pageCfg.budget != null ? pageCfg.budget : config.budget,
+          unitPrice: pageCfg.unitPrice != null ? pageCfg.unitPrice : config.unitPrice,
+          startDate: config.startDate,
+          endDate: config.endDate,
+          // 欄位設定依「類型」共用;若未提供則沿用全域 metrics
+          metrics: (typeCfg.metrics && typeCfg.metrics.length) ? typeCfg.metrics : config.metrics,
+          // 只放屬於本分頁的素材
+          creatives: creatives.filter(c => (c.type || config.type) === t && (c.page || t) === page),
+          sections: config.sections,
+        };
+        warnings = warnings.concat(buildSheet(wb, ExcelJS, parsed, sheetCfg, sheetName(page, usedNames)));
+      }
+    }
+    /* --- 內嵌設定:供「更新報表」還原(隱藏工作表,分段存 JSON) --- */
+    if (config.embedConfig) {
+      const cs = wb.addWorksheet('_config');
+      const json = JSON.stringify(config.embedConfig);
+      for (let i = 0, r = 1; i < json.length; i += 30000, r++)
+        cs.getCell(r, 1).value = json.slice(i, i + 30000);
+      cs.state = 'veryHidden';
+    }
+    return { wb, warnings };
+  }
+
+  // 從舊報表讀回內嵌設定;讀不到回傳 null
+  async function readEmbeddedConfig(ExcelJS, arrayBuffer) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(arrayBuffer);
+    const cs = wb.getWorksheet('_config');
+    if (!cs) return null;
+    let json = '';
+    for (let r = 1; r <= cs.rowCount; r++) {
+      const v = cs.getCell(r, 1).value;
+      if (v == null) break;
+      json += String(v);
+    }
+    try { return JSON.parse(json); } catch (_) { return null; }
+  }
+
+  // Excel 工作表名:去除不合法字元、限 31 字、確保唯一
+  function sheetName(raw, used) {
+    let n = String(raw || '分頁').replace(/[\\\/\*\?\:\[\]]/g, '_').slice(0, 31) || '分頁';
+    let base = n, i = 2;
+    while (used.has(n)) { const suf = `(${i++})`; n = base.slice(0, 31 - suf.length) + suf; }
+    used.add(n);
+    return n;
+  }
+
+  function buildWarnings(parsed, tc, hasRatio, hasCost) {
+    const w = [];
+    if (!hasRatio) w.push(`Raw Data 缺少或未勾選「${tc.ratio.top}」所需欄位,該欄不產出`);
+    if (!hasCost) w.push(`Raw Data 缺少或未勾選「${tc.cost.top}」所需欄位,成本欄不產出`);
+    if (!parsed.hasSpend) w.push('Raw Data 找不到「花費含服務費」欄位,費用以 0 計');
+    return w;
+  }
+
+  return { parseRaw, buildWorkbook, buildSheet, aggregate, listDays, METRIC_DEFS, TYPE_CONFIG, colLetter, defaultMetricsForType, readEmbeddedConfig };
+});
+
+</script>
+<script>
+const $ = id => document.getElementById(id);
+let parsed = null;
+let creativeState = []; // {raw,label,include,type,page} page=所屬分頁(預設=類型名)
+let metricState = [];   // 單一模式:{key,include} 依此順序產出欄位
+let typeMetricState = {}; // 複合模式:{CPM:[{key,include}],CPC:[...]} 欄位設定依「類型」共用
+let pageInfoState = {};   // 複合模式:{分頁名:{name,budget,unitPrice}} 基本資訊依「分頁」各一組
+let activeTab = null;     // 複合模式目前編輯的類型頁籤
+const ALL_TYPES = ['CPM', 'CPC', 'CPLC', 'CPV'];
+
+/* ---------- 步驟 1:上傳解析 ---------- */
+function readXlsxRows(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+}
+// 用解析結果初始化全部設定狀態(建立新報表模式)
+function initFromParsed() {
+  const mainType = document.querySelector('input[name=rtype]:checked').value;
+  creativeState = parsed.ads.map(a => ({ raw: a, label: a, include: true, type: mainType, page: mainType, image: null }));
+  metricState = parsed.metricCols.map(m => ({ key: m.key, include: true }));
+  typeMetricState = {};
+  pageInfoState = {};
+  const availKeys = parsed.metricCols.map(m => m.key);
+  for (const t of ALL_TYPES) {
+    typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys).map(k => ({ key: k, include: true }));
+    pageInfoState[t] = { name: '', budget: '', unitPrice: '' };
+  }
+}
+function unlockAndRender() {
+  renderParseResult();
+  renderSettings();
+  $('card2').classList.remove('locked');
+  $('card3').classList.remove('locked');
+  refresh();
+}
+$('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      parsed = ReportGen.parseRaw(readXlsxRows(ev.target.result));
+      if (!parsed.records.length) throw new Error('沒有讀到任何有效資料列,請確認檔案內容');
+      initFromParsed();
+      unlockAndRender();
+    } catch (err) {
+      parsed = null;
+      $('card2').classList.add('locked'); $('card3').classList.add('locked');
+      $('parseResult').innerHTML = `<div class="error">讀取失敗:${esc(err.message)}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(f);
+});
+
+/* ---------- 模式切換 ---------- */
+document.querySelectorAll('input[name=wmode]').forEach(r => r.addEventListener('change', () => {
+  const upd = document.querySelector('input[name=wmode]:checked').value === 'update';
+  $('newModeBox').style.display = upd ? 'none' : '';
+  $('updateModeBox').style.display = upd ? '' : 'none';
+  $('step1Title').textContent = upd ? '上傳舊報表與最新 Raw Data' : '上傳檔案';
+}));
+
+/* ---------- 更新報表模式 ---------- */
+let pendingOldConfig = null;   // 舊報表讀出的設定
+let pendingRawRows = null;     // 新 Raw Data 的列
+$('oldReportInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    try {
+      pendingOldConfig = await ReportGen.readEmbeddedConfig(ExcelJS, ev.target.result);
+      if (!pendingOldConfig) throw new Error('這份報表沒有內嵌設定(不是本工具產出,或版本過舊),請改用「建立新報表」');
+      $('restoreStatus').innerHTML = `<div class="chips"><span class="chip">✓ 舊報表設定已讀取(${esc(pendingOldConfig.savedAt || '')})</span></div>`;
+      tryRestore();
+    } catch (err) {
+      pendingOldConfig = null;
+      $('restoreStatus').innerHTML = `<div class="error">${esc(err.message)}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(f);
+});
+$('rawUpdateInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      pendingRawRows = readXlsxRows(ev.target.result);
+      tryRestore();
+    } catch (err) {
+      pendingRawRows = null;
+      $('parseResult').innerHTML = `<div class="error">Raw Data 讀取失敗:${esc(err.message)}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(f);
+});
+// 兩個檔案都就緒後執行還原
+function tryRestore() {
+  if (!pendingOldConfig || !pendingRawRows) return;
+  try {
+    parsed = ReportGen.parseRaw(pendingRawRows);
+    if (!parsed.records.length) throw new Error('Raw Data 沒有有效資料列');
+    const cfg = pendingOldConfig;
+    // 還原全域設定
+    $('compositeChk').checked = !!cfg.composite;
+    if (cfg.mainType) { const r = document.querySelector(`input[name=rtype][value=${cfg.mainType}]`); if (r) r.checked = true; }
+    if (cfg.single) { $('fName').value = cfg.single.name || ''; $('fBudget').value = cfg.single.budget || ''; $('fUnit').value = cfg.single.unitPrice || ''; }
+    $('secInterest').checked = cfg.sections ? !!cfg.sections.interest : true;
+    $('secGender').checked = cfg.sections ? !!cfg.sections.gender : true;
+    $('secAge').checked = cfg.sections ? !!cfg.sections.age : true;
+    // 走期:起=舊設定,迄=新資料最大日期(週更自然延伸)
+    $('fStart').value = cfg.startDate || parsed.dateMin;
+    $('fEnd').value = parsed.dateMax;
+    $('fStart').min = $('fEnd').min = parsed.dateMin;
+    // 欄位狀態:以新 Raw Data 實際欄位為準,套舊設定的順序與勾選
+    const availKeys = parsed.metricCols.map(m => m.key);
+    metricState = reconcileMetrics(cfg.metricState, availKeys);
+    typeMetricState = {};
+    for (const t of ALL_TYPES)
+      typeMetricState[t] = reconcileMetrics((cfg.typeMetricState || {})[t], availKeys, t);
+    pageInfoState = cfg.pageInfoState || {};
+    for (const t of ALL_TYPES) ensurePageInfo(t);
+    // 素材對帳:依 raw 名稱比對
+    const savedCre = cfg.creatives || [];
+    const savedByRaw = new Map(savedCre.map(c => [c.raw, c]));
+    const mainType = document.querySelector('input[name=rtype]:checked').value;
+    creativeState = [];
+    for (const c of savedCre) if (parsed.ads.includes(c.raw)) creativeState.push({ ...c });
+    const newOnes = parsed.ads.filter(a => !savedByRaw.has(a));
+    for (const a of newOnes) creativeState.push({ raw: a, label: a, include: true, type: mainType, page: mainType, image: null });
+    const missing = savedCre.filter(c => !parsed.ads.includes(c.raw)).map(c => c.raw);
+    // 提示
+    let html = '';
+    if (missing.length) html += `<div class="warn"><b>⚠ 下列素材在新 Raw Data 中找不到,已略過:</b>${missing.map(esc).join('、')}<br>請確認 Raw Data 匯出範圍是否涵蓋完整活動期間。</div>`;
+    if (newOnes.length) html += `<div class="warn">新 Raw Data 有 ${newOnes.length} 個新素材(${newOnes.map(esc).join('、')}),已加到素材清單尾端,請補設定與上刊圖。</div>`;
+    const nImg = creativeState.filter(c => c.image).length;
+    html += `<div class="chips"><span class="chip">✓ 設定已還原</span><span class="chip">上刊圖 <b>${nImg}</b> 張已還原</span></div>`;
+    $('restoreStatus').innerHTML = ($('restoreStatus').innerHTML || '') + html;
+    unlockAndRender();
+    applyMode();
+  } catch (err) {
+    $('restoreStatus').innerHTML += `<div class="error">還原失敗:${esc(err.message)}</div>`;
+  }
+}
+// 舊欄位設定 + 新可用欄位 → 對齊(舊順序優先,缺的略過,新欄位補到尾端)
+function reconcileMetrics(saved, availKeys, typeForDefault) {
+  const avail = new Set(availKeys);
+  const out = [];
+  if (saved && saved.length) {
+    for (const m of saved) if (avail.has(m.key)) out.push({ key: m.key, include: m.include !== false });
+    for (const k of availKeys) if (!out.some(m => m.key === k)) out.push({ key: k, include: !saved.length });
+  } else if (typeForDefault) {
+    for (const k of ReportGen.defaultMetricsForType(typeForDefault, availKeys)) out.push({ key: k, include: true });
+  } else {
+    for (const k of availKeys) out.push({ key: k, include: true });
+  }
+  return out;
+}
+
+function renderParseResult() {
+  const p = parsed;
+  let html = `<div class="chips">
+    <span class="chip">資料日期 <b>${p.dateMin} ~ ${p.dateMax}</b></span>
+    <span class="chip">素材 <b>${p.ads.length}</b> 個</span>
+    <span class="chip">受眾 <b>${p.adsets.length}</b> 組</span>
+    <span class="chip">數據欄位 <b>${p.metricCols.length}</b> 個</span>
+    <span class="chip">有效列 <b>${p.records.length}</b></span>
+  </div>`;
+  if (p.skippedRows) html += `<div class="warn">已自動略過 ${p.skippedRows} 列彙總/非日期資料(如「總覽」列)</div>`;
+  if (!p.hasSpend) html += `<div class="warn">找不到「花費含服務費」欄位,費用相關欄位將以 0 計</div>`;
+  $('parseResult').innerHTML = html;
+}
+
+/* ---------- 步驟 2:設定區渲染 ---------- */
+function isComposite() { return $('compositeChk').checked; }
+
+function renderSettings() {
+  $('fStart').value = parsed.dateMin; $('fEnd').value = parsed.dateMax;
+  $('fStart').min = $('fEnd').min = parsed.dateMin;
+  applyMode();
+}
+
+function applyMode() {
+  const comp = isComposite();
+  $('singleInfo').style.display = comp ? 'none' : '';
+  $('singleMetricBox').style.display = comp ? 'none' : '';
+  $('compositeInfo').style.display = comp ? '' : 'none';
+  $('compositeMetricBox').style.display = comp ? '' : 'none';
+  // 單一模式的報表類型 radio 在複合模式下僅作為「主類型」預設來源,維持可用
+  if (comp) {
+    if (!activeTab || !usedTypes().includes(activeTab)) activeTab = usedTypes()[0] || null;
+    renderTypeTabs();
+    renderTypeMetrics();
+    renderTypeInfos();
+  } else {
+    renderMetrics();
+  }
+  renderCreatives();
+  refresh();
+}
+
+// 目前素材實際用到的類型(依 ALL_TYPES 順序)
+function usedTypes() {
+  const set = new Set(creativeState.filter(c => c.include !== false).map(c => c.type));
+  return ALL_TYPES.filter(t => set.has(t));
+}
+// 目前素材實際用到的分頁(依類型順序,同類型內依素材出現順序):[{page,type}]
+function usedPages() {
+  const pages = [];
+  for (const t of ALL_TYPES)
+    for (const c of creativeState) {
+      if (c.include === false || c.type !== t) continue;
+      const pg = c.page || t;
+      if (!pages.some(p => p.page === pg)) pages.push({ page: pg, type: t });
+    }
+  return pages;
+}
+// 某類型現有的分頁名清單(預設分頁=類型名,永遠在首位)
+function pagesForType(t) {
+  const set = new Set([t]);
+  creativeState.forEach(c => { if (c.type === t && c.page) set.add(c.page); });
+  return [...set];
+}
+function ensurePageInfo(pg) {
+  if (!pageInfoState[pg]) pageInfoState[pg] = { name: '', budget: '', unitPrice: '' };
+  return pageInfoState[pg];
+}
+// 某類型缺少的必要欄位(成本分母 / 比率分子分母),回傳缺漏的中文標籤
+function missingForType(t) {
+  const tc = ReportGen.TYPE_CONFIG[t];
+  const avail = new Set(parsed.metricCols.map(m => m.key));
+  const need = new Set([tc.cost.den, tc.ratio.num, tc.ratio.den]);
+  const miss = [...need].filter(k => !avail.has(k));
+  return miss.length ? tc.cost.top : null; // 有缺就回傳成本欄名作提示依據
+}
+
+function renderTypeTabs() {
+  const used = usedTypes();
+  $('metricTabs').innerHTML = used.map(t =>
+    `<button class="type-tab${t === activeTab ? ' active' : ''}" data-tab="${t}">${t}</button>`).join('')
+    || '<span style="color:var(--slate);font-size:13px">尚未有素材指定類型</span>';
+}
+$('metricTabs').addEventListener('click', e => {
+  const t = e.target.dataset.tab;
+  if (t) { activeTab = t; renderTypeTabs(); renderTypeMetrics(); }
+});
+
+function renderTypeMetrics() {
+  if (!activeTab) { $('metricListComposite').innerHTML = ''; return; }
+  const list = typeMetricState[activeTab] || [];
+  const avail = new Set(parsed.metricCols.map(m => m.key));
+  const rows = list.map((ms, i) => {
+    const m = parsed.metricCols.find(x => x.key === ms.key);
+    const missing = !avail.has(ms.key);
+    return `<div class="metric-row${ms.include ? '' : ' off'}${missing ? ' missing' : ''}" data-idx="${i}">
+      <span class="grip" title="拖曳排序" draggable="true">⠿</span>
+      <input type="checkbox" data-tmi="${i}" ${ms.include ? 'checked' : ''} ${missing ? 'disabled' : ''} aria-label="是否產出 ${esc(m ? m.top + m.bottom : ms.key)}">
+      <span class="ord mono">${i + 1}</span>
+      <span class="mname">${m ? esc(m.top) + esc(m.bottom) : esc(ms.key)}</span>
+      <span class="raw" title="${m ? esc(m.rawName) : ''}">${m ? esc(m.rawName) : ''}</span>
+      ${missing ? '<span class="miss-tag">缺此欄</span>' : ''}
+      <button data-tmup="${i}" title="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button data-tmdn="${i}" title="下移" ${i === list.length - 1 ? 'disabled' : ''}>↓</button>
+    </div>`;
+  }).join('');
+  $('metricListComposite').innerHTML = rows;
+  $('metricToolsComposite').innerHTML = activeTab
+    ? `<div class="metric-tools"><button class="btn-reset" id="btnResetType" title="還原成此類型的建議欄位順序">↺ 套用 ${activeTab} 建議順序</button></div>`
+    : '';
+}
+enableDragSort($('metricListComposite'), () => typeMetricState[activeTab], () => { renderTypeMetrics(); refresh(); });
+$('metricToolsComposite').addEventListener('click', e => {
+  if (!activeTab) return;
+  if (e.target.id === 'btnResetType') {
+    const availKeys = parsed.metricCols.map(m => m.key);
+    const prev = typeMetricState[activeTab];
+    const incl = new Map(prev.map(m => [m.key, m.include]));
+    typeMetricState[activeTab] = ReportGen.defaultMetricsForType(activeTab, availKeys)
+      .map(k => ({ key: k, include: incl.has(k) ? incl.get(k) : true }));
+    renderTypeMetrics(); refresh();
+  }
+});
+$('metricListComposite').addEventListener('click', e => {
+  if (!activeTab) return;
+  const list = typeMetricState[activeTab];
+  const up = e.target.dataset.tmup, dn = e.target.dataset.tmdn;
+  if (up != null) { const i = +up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; renderTypeMetrics(); refresh(); }
+  if (dn != null) { const i = +dn; [list[i + 1], list[i]] = [list[i], list[i + 1]]; renderTypeMetrics(); refresh(); }
+});
+$('metricListComposite').addEventListener('input', e => {
+  if (!activeTab) return;
+  if (e.target.dataset.tmi != null) { typeMetricState[activeTab][+e.target.dataset.tmi].include = e.target.checked; renderTypeMetrics(); refresh(); }
+});
+
+function renderTypeInfos() {
+  const pages = usedPages();
+  if (!pages.length) { $('typeInfoList').innerHTML = '<div style="color:var(--slate);font-size:13px">尚未有素材指定類型</div>'; return; }
+  $('typeInfoList').innerHTML = pages.map(({ page, type }) => {
+    const info = ensurePageInfo(page);
+    const tc = ReportGen.TYPE_CONFIG[type];
+    const n = creativeState.filter(c => c.include !== false && c.type === type && (c.page || type) === page).length;
+    return `<div class="type-info-card">
+      <h4><span class="badge">${esc(page)}</span>${type} 分頁 · ${n} 個素材</h4>
+      <div class="grid">
+        <div class="field"><label>名稱</label><input type="text" data-pi="${esc(page)}" data-tf="name" value="${esc(info.name)}" placeholder="例:${esc(page)}_campaign"></div>
+        <div class="field"><label>預算 (TWD)</label><input type="number" min="0" data-pi="${esc(page)}" data-tf="budget" value="${esc(info.budget)}" placeholder="例:30000"></div>
+        <div class="field"><label>${tc.unitLabel} 單價</label><input type="number" min="0" step="0.01" data-pi="${esc(page)}" data-tf="unitPrice" value="${esc(info.unitPrice)}" placeholder="例:80"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+$('typeInfoList').addEventListener('input', e => {
+  const pg = e.target.dataset.pi, f = e.target.dataset.tf;
+  if (pg && f) { ensurePageInfo(pg)[f] = e.target.value; refresh(); }
+});
+
+$('compositeChk').addEventListener('change', applyMode);
+
+// 主類型 radio:單一模式直接套用;複合模式視為「重設所有素材預設類型」
+document.querySelectorAll('input[name=rtype]').forEach(r => r.addEventListener('change', () => {
+  if (!parsed) return;
+  if (isComposite()) {
+    const mt = document.querySelector('input[name=rtype]:checked').value;
+    creativeState.forEach(c => { c.type = mt; c.page = mt; });
+    activeTab = mt;
+    renderTypeTabs(); renderTypeMetrics(); renderTypeInfos(); renderCreatives();
+  }
+  refresh();
+}));
+
+function renderCreatives() {
+  const comp = isComposite();
+  $('creativeList').innerHTML = creativeState.map((c, i) => {
+    const miss = comp ? missingForType(c.type) : null;
+    const pg = c.page || c.type;
+    const pageOpts = comp ? pagesForType(c.type) : [];
+    const sel = comp ? `<select data-ct="${i}" aria-label="素材類型" title="優化目標類型">
+        ${ALL_TYPES.map(t => `<option value="${t}" ${c.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+      </select><select data-cp="${i}" aria-label="產出分頁" title="產出到哪個分頁">
+        ${pageOpts.map(p => `<option value="${esc(p)}" ${pg === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+        <option value="__new">➕ 新增分頁…</option>
+      </select>${miss ? `<span class="cre-miss">缺${esc(miss)}欄</span>` : ''}` : '';
+    const imgCell = c.image
+      ? `<div class="img-cell" data-img="${i}" title="更換上刊圖:${esc(c.image.filename || '')}"><img src="data:image/${c.image.extension === 'jpg' ? 'jpeg' : c.image.extension};base64,${c.image.base64}" alt="上刊圖"><span class="img-x" data-imgx="${i}" title="移除">✕</span></div>`
+      : `<div class="img-cell" data-img="${i}" title="上傳上刊圖">🖼</div>`;
+    return `<div class="creative">
+      <label class="ck" style="border:none;background:none;padding:0"><input type="checkbox" data-ci="${i}" ${c.include ? 'checked' : ''}></label>
+      <span class="tag mono">素材${i + 1}</span>
+      ${imgCell}
+      <input type="text" data-cl="${i}" value="${esc(c.label)}" aria-label="素材顯示名稱">
+      ${sel}
+      <button data-up="${i}" title="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button data-dn="${i}" title="下移" ${i === creativeState.length - 1 ? 'disabled' : ''}>↓</button>
+    </div>`;
+  }).join('');
+}
+
+function renderMetrics() {
+  $('metricList').innerHTML = metricState.map((ms, i) => {
+    const m = parsed.metricCols.find(x => x.key === ms.key);
+    return `<div class="metric-row${ms.include ? '' : ' off'}" data-idx="${i}">
+      <span class="grip" title="拖曳排序" draggable="true">⠿</span>
+      <input type="checkbox" data-mi="${i}" ${ms.include ? 'checked' : ''} aria-label="是否產出 ${esc(m.top + m.bottom)}">
+      <span class="ord mono">${i + 1}</span>
+      <span class="mname">${esc(m.top)}${esc(m.bottom)}</span>
+      <span class="raw" title="${esc(m.rawName)}">${esc(m.rawName)}</span>
+      <button data-mup="${i}" title="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button data-mdn="${i}" title="下移" ${i === metricState.length - 1 ? 'disabled' : ''}>↓</button>
+    </div>`;
+  }).join('');
+}
+enableDragSort($('metricList'), () => metricState, () => { renderMetrics(); refresh(); });
+$('metricList').addEventListener('click', e => {
+  const up = e.target.dataset.mup, dn = e.target.dataset.mdn;
+  if (up != null) { const i = +up; [metricState[i - 1], metricState[i]] = [metricState[i], metricState[i - 1]]; renderMetrics(); refresh(); }
+  if (dn != null) { const i = +dn; [metricState[i + 1], metricState[i]] = [metricState[i], metricState[i + 1]]; renderMetrics(); refresh(); }
+});
+$('metricList').addEventListener('input', e => {
+  if (e.target.dataset.mi != null) { metricState[+e.target.dataset.mi].include = e.target.checked; renderMetrics(); refresh(); }
+});
+
+/* ---------- 上刊圖:讀檔 + 單格 + 批次配對 ---------- */
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const ext = /\.png$/i.test(file.name) ? 'png' : 'jpeg';
+    const fr = new FileReader();
+    fr.onload = () => {
+      const dataUrl = fr.result;
+      const img = new Image();
+      img.onload = () => resolve({
+        base64: dataUrl.split(',')[1], extension: ext,
+        width: img.naturalWidth, height: img.naturalHeight, filename: file.name,
+      });
+      img.onerror = () => reject(new Error('圖片無法讀取:' + file.name));
+      img.src = dataUrl;
+    };
+    fr.onerror = () => reject(new Error('檔案讀取失敗:' + file.name));
+    fr.readAsDataURL(file);
+  });
+}
+let singleImgTarget = null;
+$('singleImgInput').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f || singleImgTarget == null) return;
+  try {
+    creativeState[singleImgTarget].image = await readImageFile(f);
+    renderCreatives(); refresh();
+  } catch (err) { alert(err.message); }
+  singleImgTarget = null;
+});
+$('btnBatchImg').addEventListener('click', () => $('batchImgInput').click());
+$('batchImgInput').addEventListener('change', async e => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  if (!files.length) return;
+  const stem = n => n.replace(/\.[^.]+$/, '').trim();
+  const matched = [], unmatched = [];
+  for (const f of files) {
+    let img;
+    try { img = await readImageFile(f); } catch (err) { unmatched.push({ file: f.name, img: null, error: err.message }); continue; }
+    const nm = stem(f.name);
+    // 三層配對:完全符合 → 包含關係 → 未配對
+    let idx = creativeState.findIndex(c => c.raw === nm || c.label === nm);
+    if (idx < 0) idx = creativeState.findIndex(c => c.raw.includes(nm) || nm.includes(c.raw) || (c.label && (c.label.includes(nm) || nm.includes(c.label))));
+    if (idx >= 0) { creativeState[idx].image = img; matched.push({ file: f.name, to: creativeState[idx].label || creativeState[idx].raw }); }
+    else unmatched.push({ file: f.name, img });
+  }
+  renderCreatives(); refresh();
+  renderUnmatched(matched, unmatched);
+});
+let unmatchedImgs = [];
+function renderUnmatched(matched, unmatched) {
+  unmatchedImgs = unmatched.filter(u => u.img);
+  let html = '';
+  if (matched.length) html += `<div class="chips" style="margin-bottom:6px">${matched.map(m => `<span class="chip">✓ ${esc(m.file)} → ${esc(m.to)}</span>`).join('')}</div>`;
+  if (unmatched.length) {
+    html += `<div class="unmatched-box"><b>未配對 ${unmatched.length} 張,請手動指定素材:</b>` +
+      unmatchedImgs.map((u, i) => `<div class="um-row">🖼 ${esc(u.file)} → <select data-um="${i}">
+        <option value="">選擇素材…</option>
+        ${creativeState.map((c, ci) => `<option value="${ci}">素材${ci + 1}:${esc(c.label || c.raw)}</option>`).join('')}
+      </select></div>`).join('') + '</div>';
+  }
+  $('unmatchedBox').innerHTML = html;
+}
+$('unmatchedBox').addEventListener('change', e => {
+  const i = e.target.dataset.um;
+  if (i == null || e.target.value === '') return;
+  creativeState[+e.target.value].image = unmatchedImgs[+i].img;
+  unmatchedImgs.splice(+i, 1);
+  renderUnmatched([], unmatchedImgs.map(u => ({ file: u.file, img: u.img })));
+  renderCreatives(); refresh();
+});
+
+$('creativeList').addEventListener('click', e => {
+  // 上刊圖:移除 or 開啟單格上傳
+  const imgx = e.target.dataset.imgx;
+  if (imgx != null) { creativeState[+imgx].image = null; renderCreatives(); refresh(); return; }
+  const imgCell = e.target.closest('[data-img]');
+  if (imgCell) { singleImgTarget = +imgCell.dataset.img; $('singleImgInput').click(); return; }
+  const up = e.target.dataset.up, dn = e.target.dataset.dn;
+  if (up != null) { const i = +up;[creativeState[i - 1], creativeState[i]] = [creativeState[i], creativeState[i - 1]]; renderCreatives(); refresh(); }
+  if (dn != null) { const i = +dn;[creativeState[i + 1], creativeState[i]] = [creativeState[i], creativeState[i + 1]]; renderCreatives(); refresh(); }
+});
+$('creativeList').addEventListener('input', e => {
+  if (e.target.dataset.cl != null) creativeState[+e.target.dataset.cl].label = e.target.value;
+  if (e.target.dataset.ci != null) creativeState[+e.target.dataset.ci].include = e.target.checked;
+  if (e.target.dataset.ct != null) {
+    const c = creativeState[+e.target.dataset.ct];
+    c.type = e.target.value;
+    c.page = c.type; // 換類型時分頁重設為該類型預設
+    if (!usedTypes().includes(activeTab)) activeTab = usedTypes()[0] || null;
+    renderTypeTabs(); renderTypeMetrics(); renderTypeInfos(); renderCreatives();
+  }
+  if (e.target.dataset.cp != null) {
+    const i = +e.target.dataset.cp;
+    const c = creativeState[i];
+    if (e.target.value === '__new') {
+      const name = (window.prompt('輸入新分頁名稱(將作為 Excel 工作表名):', `${c.type}_2`) || '').trim();
+      const allPages = new Set(ALL_TYPES.flatMap(t => pagesForType(t)));
+      if (!name) { renderCreatives(); refresh(); return; } // 取消或空白:還原下拉
+      if (allPages.has(name)) { alert('分頁名稱已存在,請換一個名稱'); renderCreatives(); refresh(); return; }
+      c.page = name;
+      ensurePageInfo(name);
+    } else {
+      c.page = e.target.value;
+    }
+    renderTypeInfos(); renderCreatives();
+  }
+  refresh();
+});
+document.addEventListener('input', e => { if (e.target.closest('#card2')) refresh(); });
+
+/* ---------- 即時狀態 ---------- */
+function currentConfig() {
+  const mainType = document.querySelector('input[name=rtype]:checked').value;
+  const base = {
+    startDate: $('fStart').value, endDate: $('fEnd').value,
+    creatives: creativeState,
+    sections: { interest: $('secInterest').checked, gender: $('secGender').checked, age: $('secAge').checked },
+  };
+  if (!isComposite()) {
+    return {
+      ...base, composite: false, type: mainType,
+      name: $('fName').value.trim(),
+      budget: parseFloat($('fBudget').value) || 0,
+      unitPrice: parseFloat($('fUnit').value) || 0,
+      metrics: metricState.filter(m => m.include).map(m => m.key),
+    };
+  }
+  // 複合模式:欄位依「類型」共用;名稱/預算/單價依「分頁」各一組
+  const typeConfigs = {};
+  for (const t of ALL_TYPES) {
+    typeConfigs[t] = { metrics: (typeMetricState[t] || []).filter(m => m.include).map(m => m.key) };
+  }
+  const pageConfigs = {};
+  for (const { page } of usedPages()) {
+    const info = ensurePageInfo(page);
+    pageConfigs[page] = {
+      name: (info.name || '').trim(),
+      budget: parseFloat(info.budget) || 0,
+      unitPrice: parseFloat(info.unitPrice) || 0,
+    };
+  }
+  return {
+    ...base, composite: true, type: mainType,
+    name: $('fName') ? $('fName').value.trim() : '',
+    metrics: metricState.filter(m => m.include).map(m => m.key), // 後備
+    typeConfigs, pageConfigs,
+  };
+}
+
+function refresh() {
+  if (!parsed) return;
+  const cfg = currentConfig();
+  const days = (cfg.startDate && cfg.endDate && cfg.endDate >= cfg.startDate) ? ReportGen.listDays(cfg.startDate, cfg.endDate).length : 0;
+  if (!cfg.composite) {
+    const tc = ReportGen.TYPE_CONFIG[cfg.type];
+    $('unitLabel').textContent = tc.unitLabel + ' 單價';
+    renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length);
+    const nCre = cfg.creatives.filter(c => c.include !== false).length;
+    $('genSummary').textContent = `將產出:${cfg.type} 報表 · ${days} 天 × ${nCre} 個素材 × ${cfg.metrics.length} 個數據欄位` +
+      (Object.values(cfg.sections).some(Boolean) ? ' · 含受眾彙總區塊' : '');
+  } else {
+    // 藍圖顯示目前頁籤類型的版型
+    if (activeTab) {
+      const tc = ReportGen.TYPE_CONFIG[activeTab];
+      const mets = (typeMetricState[activeTab] || []).filter(m => m.include).map(m => m.key);
+      const n = creativeState.filter(c => c.include !== false && c.type === activeTab).length;
+      renderBlueprintSingle(mets, tc, n, activeTab);
+    } else $('bpRow').innerHTML = '';
+    const pages = usedPages();
+    const parts = pages.map(({ page, type }) => {
+      const n = creativeState.filter(c => c.include !== false && c.type === type && (c.page || type) === page).length;
+      return `${page}(${n}素材)`;
+    });
+    $('genSummary').textContent = pages.length
+      ? `複合報表 · ${days} 天 · 將產出 ${pages.length} 個分頁:${parts.join('、')}`
+      : '複合模式:請至少指定一個素材的類型';
+  }
+}
+
+function renderBlueprintSingle(metrics, tc, nCre, tabLabel) {
+  const sel = metrics.map(k => parsed.metricCols.find(m => m.key === k)).filter(Boolean);
+  const hasRatio = metrics.includes(tc.ratio.num) && metrics.includes(tc.ratio.den);
+  const hasCost = parsed.hasSpend && metrics.includes(tc.cost.den);
+  const group = () => sel.map(m => `<span class="bp">${esc(m.top)}${esc(m.bottom)}</span>`).join('') +
+    (hasRatio ? `<span class="bp calc">${esc(tc.ratio.top)}</span>` : '') +
+    (hasCost ? `<span class="bp calc">${esc(tc.cost.top)}</span>` : '') +
+    `<span class="bp fee">廣告費用</span>`;
+  let html = (tabLabel ? `<span class="bp dim" style="background:var(--accent);color:var(--accent-ink)">${esc(tabLabel)} 分頁</span>` : '') +
+    `<span class="bp dim">日期</span>` + group();
+  for (let i = 0; i < nCre; i++)
+    html += `<span class="bp-sep">‖</span><span class="bp dim">素材${i + 1}</span>` + group();
+  $('bpRow').innerHTML = html;
+}
+
+/* ---------- 步驟 3:產出 ---------- */
+$('btnGen').addEventListener('click', async () => {
+  const cfg = currentConfig();
+  const out = $('genResult');
+  out.innerHTML = '';
+  try {
+    if (!cfg.startDate || !cfg.endDate) throw new Error('請選擇走期開始與結束日期');
+    if (cfg.endDate < cfg.startDate) throw new Error('走期結束日期不可早於開始日期');
+    if (!cfg.creatives.some(c => c.include !== false)) throw new Error('請至少保留一個素材');
+    if (!cfg.composite) {
+      if (!cfg.metrics.length) throw new Error('請至少勾選一個數據欄位');
+    } else {
+      const used = usedTypes();
+      if (!used.length) throw new Error('複合模式:請至少指定一個素材的類型');
+      for (const t of used)
+        if (!cfg.typeConfigs[t].metrics.length) throw new Error(`${t} 分頁尚未勾選任何數據欄位`);
+    }
+    // 內嵌設定快照,供之後「更新報表」還原
+    cfg.embedConfig = {
+      v: 1, savedAt: new Date().toISOString().slice(0, 10),
+      composite: cfg.composite,
+      mainType: document.querySelector('input[name=rtype]:checked').value,
+      single: { name: $('fName').value.trim(), budget: $('fBudget').value, unitPrice: $('fUnit').value },
+      startDate: cfg.startDate, endDate: cfg.endDate,
+      sections: cfg.sections,
+      metricState, typeMetricState, pageInfoState,
+      creatives: creativeState,
+    };
+    const { wb, warnings } = ReportGen.buildWorkbook(ExcelJS, parsed, cfg);
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const range = `${cfg.startDate.replaceAll('-', '')}-${cfg.endDate.replaceAll('-', '')}`;
+    const tag = cfg.composite ? `複合_${usedTypes().join('+')}` : cfg.type;
+    const baseName = (cfg.name || '廣告報表');
+    a.download = `${baseName}_${tag}_${range}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    let html = `<div class="done">✓ 報表已下載:${esc(a.download)}</div>`;
+    if (warnings.length) html += `<div class="warn">${warnings.map(esc).join('<br>')}</div>`;
+    out.innerHTML = html;
+  } catch (err) {
+    out.innerHTML = `<div class="error">產出失敗:${esc(err.message)}</div>`;
+  }
+});
+
+/* ---------- 通用拖曳排序(握把式) ---------- */
+// container: 清單容器; getList: 回傳目前陣列; onReorder: 完成重排後呼叫
+// 設計:只有 .grip(draggable=true)是拖曳來源,列本身不可拖,避免兩者衝突
+function enableDragSort(container, getList, onReorder) {
+  let dragIdx = null;
+  const clearMarks = () => container.querySelectorAll('.dragging,.drop-before,.drop-after')
+    .forEach(el => el.classList.remove('dragging', 'drop-before', 'drop-after'));
+
+  container.addEventListener('dragstart', e => {
+    const grip = e.target.closest('.grip');
+    if (!grip) return; // 不是從握把拖,讓瀏覽器自行處理(列已設 draggable=false 故不會觸發)
+    const row = grip.closest('[data-idx]');
+    if (!row) return;
+    dragIdx = +row.dataset.idx;
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(dragIdx)); } catch (_) {}
+  });
+  container.addEventListener('dragend', () => { dragIdx = null; clearMarks(); });
+  container.addEventListener('dragover', e => {
+    if (dragIdx == null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const row = e.target.closest('[data-idx]');
+    container.querySelectorAll('.drop-before,.drop-after').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+    if (!row || +row.dataset.idx === dragIdx) return;
+    const rect = row.getBoundingClientRect();
+    const after = e.clientY > rect.top + rect.height / 2;
+    row.classList.add(after ? 'drop-after' : 'drop-before');
+  });
+  container.addEventListener('drop', e => {
+    if (dragIdx == null) return;
+    e.preventDefault();
+    const row = e.target.closest('[data-idx]');
+    if (!row) { clearMarks(); dragIdx = null; return; }
+    let to = +row.dataset.idx;
+    const rect = row.getBoundingClientRect();
+    if (e.clientY > rect.top + rect.height / 2) to += 1;
+    const from = dragIdx;
+    if (to > from) to -= 1; // 移除原位後索引校正
+    clearMarks();
+    if (to !== from && to >= 0) {
+      const list = getList();
+      const [moved] = list.splice(from, 1);
+      list.splice(to, 0, moved);
+      onReorder();
+    }
+    dragIdx = null;
+  });
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+</script>
+</body>
+</html>
