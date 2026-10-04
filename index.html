@@ -384,10 +384,10 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 
   // 每個類型的「優先欄位」(其餘可用欄位接在後面),供 UI 帶入預設勾選與排序
   const TYPE_PRIORITY = {
-  CPM:   ['impressions', 'reach', 'clicks'],
-  CPC:   ['impressions', 'clicks'],
-  LCPC:  ['impressions', 'linkClicks'],
-  CPV:   ['impressions', 'reach', 'video3s', 'video15s', 'clicks'],
+  CPM:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
+  CPC:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
+  LCPC: ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
+  CPV:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
 };
   // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
   function defaultMetricsForType(type, availableKeys) {
@@ -913,18 +913,28 @@ function readXlsxRows(arrayBuffer) {
   const ws = wb.Sheets[wb.SheetNames[0]];
   return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
 }
+
+// 預設勾選：貼文互動不勾，其餘欄位預設勾選
+function defaultMetricInclude(key) {
+  const m = parsed && parsed.metricCols ? parsed.metricCols.find(x => x.key === key) : null;
+  if (!m) return true;
+  const txt = `${m.top || ''}${m.bottom || ''}${m.rawName || ''}`;
+  return !/貼文互動/.test(txt);
+}
 // 用解析結果初始化全部設定狀態(建立新報表模式)
 function initFromParsed() {
   const mainType = document.querySelector('input[name=rtype]:checked').value;
   creativeState = parsed.ads.map(a => ({ raw: a, label: a, include: true, image: null }));
-  metricState = parsed.metricCols.map(m => ({ key: m.key, include: true }));
+  const availKeys = parsed.metricCols.map(m => m.key);
+  metricState = ReportGen.defaultMetricsForType('CPM', availKeys)
+    .map(k => ({ key: k, include: defaultMetricInclude(k) }));
   typeMetricState = {};
   pageInfoState = {};
   campaignTypeState = {};
   for (const c of parsed.campaigns || []) campaignTypeState[c] = ReportGen.detectTypeFromCampaign(c) || '';
-  const availKeys = parsed.metricCols.map(m => m.key);
   for (const t of ALL_TYPES) {
-    typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys).map(k => ({ key: k, include: true }));
+    typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys)
+      .map(k => ({ key: k, include: defaultMetricInclude(k) }));
     pageInfoState[t] = { name: '', budget: '', unitPrice: '' };
   }
 }
@@ -1061,7 +1071,7 @@ function reconcileMetrics(saved, availKeys, typeForDefault) {
     for (const m of saved) if (avail.has(m.key)) out.push({ key: m.key, include: m.include !== false });
     for (const k of availKeys) if (!out.some(m => m.key === k)) out.push({ key: k, include: !saved.length });
   } else if (typeForDefault) {
-    for (const k of ReportGen.defaultMetricsForType(typeForDefault, availKeys)) out.push({ key: k, include: true });
+    for (const k of ReportGen.defaultMetricsForType(typeForDefault, availKeys)) out.push({ key: k, include: defaultMetricInclude(k) });
   } else {
     for (const k of availKeys) out.push({ key: k, include: true });
   }
@@ -1245,7 +1255,7 @@ $('metricToolsComposite').addEventListener('click', e => {
     const prev = typeMetricState[activeTab];
     const incl = new Map(prev.map(m => [m.key, m.include]));
     typeMetricState[activeTab] = ReportGen.defaultMetricsForType(activeTab, availKeys)
-      .map(k => ({ key: k, include: incl.has(k) ? incl.get(k) : true }));
+      .map(k => ({ key: k, include: incl.has(k) ? incl.get(k) : defaultMetricInclude(k) }));
     renderTypeMetrics(); refresh();
   }
 });
