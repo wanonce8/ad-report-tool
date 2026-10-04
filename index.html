@@ -1451,10 +1451,15 @@ $('btnGen').addEventListener('click', async () => {
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    const range = `${cfg.startDate.replaceAll('-', '')}-${cfg.endDate.replaceAll('-', '')}`;
-    const tag = cfg.composite ? `複合_${usedTypes().join('+')}` : cfg.type;
-    const baseName = (cfg.name || '廣告報表');
-    a.download = `${baseName}_${tag}_${range}.xlsx`;
+const baseName = (cfg.name || '廣告報表');
+
+const now = new Date();
+const mmdd =
+  String(now.getMonth() + 1).padStart(2, '0') +
+  String(now.getDate()).padStart(2, '0');
+
+a.download = `${baseName}_${mmdd}.xlsx`;
+    
     a.click();
     URL.revokeObjectURL(a.href);
     let html = `<div class="done">✓ 報表已下載:${esc(a.download)}</div>`;
