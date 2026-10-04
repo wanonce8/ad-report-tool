@@ -571,8 +571,9 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const ifErr = e => `IFERROR(${e},0)`;
 
     /* --- 欄位佈局 --- */
-    // 群組欄位順序:指標群 → 廣告費用 → [比率] → [成本]
-    const groupKeys = [...selKeys, '__fee', ...(hasRatio ? ['__ratio'] : []), ...(hasCost ? ['__cost'] : [])];
+    // 群組欄位順序:指標群 → 廣告費用 → [成本] → [比率]
+    // 公式欄統一採「成本指標在前、比率在後」：CPM/CPC/LCPC/CPV → 點擊率/LCTR/VTR。
+    const groupKeys = [...selKeys, '__fee', ...(hasCost ? ['__cost'] : []), ...(hasRatio ? ['__ratio'] : [])];
     const groupW = groupKeys.length;
     const dStart = 2;
     const blocks = creatives.map((_, i) => dStart + groupW * (i + 1));
@@ -1526,9 +1527,9 @@ function renderBlueprintSingle(metrics, tc, nCre, tabLabel) {
   const hasRatio = metrics.includes(tc.ratio.num) && metrics.includes(tc.ratio.den);
   const hasCost = parsed.hasSpend && metrics.includes(tc.cost.den);
   const group = () => sel.map(m => `<span class="bp">${esc(m.top)}${esc(m.bottom)}</span>`).join('') +
-    (hasRatio ? `<span class="bp calc">${esc(tc.ratio.top)}</span>` : '') +
+    `<span class="bp fee">廣告費用</span>` +
     (hasCost ? `<span class="bp calc">${esc(tc.cost.top)}</span>` : '') +
-    `<span class="bp fee">廣告費用</span>`;
+    (hasRatio ? `<span class="bp calc">${esc(tc.ratio.top)}</span>` : '');
   let html = (tabLabel ? `<span class="bp dim" style="background:var(--accent);color:var(--accent-ink)">${esc(tabLabel)} 分頁</span>` : '') +
     `<span class="bp dim">日期</span>` + group();
   for (let i = 0; i < nCre; i++)
