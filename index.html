@@ -98,6 +98,16 @@ legend{font-size:13px;font-weight:700;color:var(--slate);margin-bottom:8px}
 .type-info-card h4{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px}
 .type-info-card h4 .badge{display:inline-block;background:var(--ink);color:#fff;border-radius:4px;padding:2px 8px;font-size:11.5px;margin-right:6px}
 .creative .warn-tag{font-size:11px;color:var(--red);font-weight:700;white-space:nowrap}
+.cpv-basis{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#FAFBFC;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cpv-basis .basis-title{font-size:13px;font-weight:700;color:var(--slate)}
+.cpv-basis label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
+.cpv-basis input{accent-color:var(--ink)}
+.campaign-map-row{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.campaign-map-row:last-child{border-bottom:none}
+.campaign-map-row .campaign-name{font-size:12.5px;overflow-wrap:anywhere}
+.campaign-map-row select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;font-family:inherit;font-size:13px}
+.creative-types{display:flex;gap:4px;flex-wrap:wrap;max-width:260px}
+.creative-types .chip{margin:0;padding:2px 7px;font-size:11px}
 .check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
 .ck{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px;background:#FAFBFC}
 .ck input{accent-color:var(--ink);width:15px;height:15px}
@@ -184,11 +194,15 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           <label class="type-opt"><input type="radio" name="rtype" value="CPM" checked><span>CPM<small>費用 ÷ 曝光 × 1000</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="CPC"><span>CPC<small>費用 ÷ 點擊次數</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="LCPC"><span>LCPC<small>費用 ÷ 連結點擊</small></span></label>
-          <label class="type-opt"><input type="radio" name="rtype" value="CPV"><span>CPV 3秒<small>費用 ÷ 3秒觀看</small></span></label>
-          <label class="type-opt"><input type="radio" name="rtype" value="CPV15"><span>CPV 15秒<small>費用 ÷ ThruPlay</small></span></label>
+          <label class="type-opt"><input type="radio" name="rtype" value="CPV"><span>CPV<small>3秒 / 15秒觀看可選</small></span></label>
+        </div>
+        <div class="cpv-basis" id="cpvBasisBox" style="display:none">
+          <span class="basis-title">CPV 觀看口徑</span>
+          <label><input type="radio" name="cpvBasis" value="3s" checked>3 秒觀看</label>
+          <label><input type="radio" name="cpvBasis" value="15s">15 秒 / ThruPlay</label>
         </div>
         <label class="composite-toggle"><input type="checkbox" id="compositeChk">
-          <span><b>複合目標報表</b>：不同素材使用不同類型,依類型分別產出到不同分頁</span></label>
+          <span><b>複合目標報表</b>：依行銷活動名稱自動辨識類型,各類型分別產出不同分頁</span></label>
       </fieldset>
 
       <fieldset>
@@ -213,6 +227,14 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       <fieldset id="compositeInfo" style="display:none">
         <legend>各分頁基本資訊(僅顯示有素材使用的分頁)</legend>
         <div id="typeInfoList"></div>
+      </fieldset>
+
+      <fieldset id="campaignMapBox" style="display:none">
+        <legend>行銷活動自動辨識（可手動修正）</legend>
+        <div class="warn" style="margin-top:0;margin-bottom:10px">
+          複合報表會先依「行銷活動」判斷 CPM / CPC / LCPC / CPV，再只抓該類型 Campaign 的數據；同一素材出現在不同 Campaign 時不會混算。
+        </div>
+        <div id="campaignMapList"></div>
       </fieldset>
 
       <!-- 單一模式:單一欄位清單 -->
@@ -299,7 +321,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 
   const SPEND_MATCH = n => n.includes('花費含服務費');
   const IGNORED_COLS = n => n.includes('已花費');
-  const DIM_COLS = ['開始日期', '結束日期', '年齡', '性別', '廣告組合', '歸因期間', '廣告'];
+  const DIM_COLS = ['開始日期', '結束日期', '年齡', '性別', '廣告組合', '歸因期間', '行銷活動', '廣告'];
 
   const TYPE_CONFIG = {
     CPM: {
@@ -333,23 +355,39 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     ratio: { top: 'VTR', num: 'video3s', den: 'impressions' },
     cost: { top: 'CPV', den: 'video3s' }
   },
-
-  CPV15: {
-    unitLabel: 'CPV',
-    planLabel: '預計15秒觀看次數',
-    planExpr: 'B3/B5',
-    ratio: { top: 'VTR', num: 'video15s', den: 'impressions' },
-    cost: { top: 'CPV', den: 'video15s' }
-  },
 };
+
+  // CPV 是同一種報表，僅切換觀看口徑（3秒 / 15秒 ThruPlay）
+  function getTypeConfig(type, cpvBasis) {
+    const base = TYPE_CONFIG[type];
+    if (!base) return null;
+    if (type !== 'CPV') return base;
+    const use15 = cpvBasis === '15s';
+    return {
+      ...base,
+      planLabel: use15 ? '預計15秒觀看次數' : '預計3秒觀看次數',
+      ratio: { ...base.ratio, num: use15 ? 'video15s' : 'video3s' },
+      cost: { ...base.cost, den: use15 ? 'video15s' : 'video3s' },
+    };
+  }
+
+  // 依「行銷活動」名稱自動辨識報表類型；較精準的 LCPC 需先於 CPC 判斷
+  function detectTypeFromCampaign(name) {
+    const n = String(name || '').toLowerCase();
+    if (!n) return null;
+    if (/lcpc|導流|link/.test(n)) return 'LCPC';
+    if (/cpv|觀看|video|thruplay/.test(n)) return 'CPV';
+    if (/cpc|互動|allclick/.test(n)) return 'CPC';
+    if (/cpm|觸及|reach/.test(n)) return 'CPM';
+    return null;
+  }
 
   // 每個類型的「優先欄位」(其餘可用欄位接在後面),供 UI 帶入預設勾選與排序
   const TYPE_PRIORITY = {
   CPM:   ['impressions', 'reach', 'clicks'],
   CPC:   ['impressions', 'clicks'],
   LCPC:  ['impressions', 'linkClicks'],
-  CPV:   ['impressions', 'reach', 'clicks'],  // 與 CPM 相同,影片觀看數據依偵測順序排在後段
-  CPV15: ['impressions', 'reach', 'video15s', 'clicks'],
+  CPV:   ['impressions', 'reach', 'video3s', 'video15s', 'clicks'],
 };
   // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
   function defaultMetricsForType(type, availableKeys) {
@@ -376,7 +414,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       return k == null ? -1 : idx[k];
     };
     const cDate = col('開始日期'), cAge = col('年齡'), cGender = col('性別'),
-          cAdset = col('廣告組合'), cAd = col('廣告');
+          cAdset = col('廣告組合'), cCampaign = col('行銷活動'), cAd = col('廣告');
 
     const metricCols = [];
     const used = new Set();
@@ -402,17 +440,21 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       const rec = {
         date: dateKey(d),
         age: str(r[cAge]), gender: str(r[cGender]),
-        adset: str(r[cAdset]), ad: str(r[cAd]),
+        adset: str(r[cAdset]),
+        campaign: str(cCampaign >= 0 ? r[cCampaign] : ''),
+        ad: str(r[cAd]),
         spend: num(spendCol >= 0 ? r[spendCol] : 0),
         values: {},
       };
       for (const m of metricCols) rec.values[m.key] = num(r[m.colIdx]);
+      rec.campaignType = detectTypeFromCampaign(rec.campaign);
       records.push(rec);
     }
     const uniq = a => [...new Set(a.filter(Boolean))];
     return {
       records, metricCols, hasSpend: spendCol >= 0, skippedRows: skipped,
       ads: uniq(records.map(r => r.ad)),
+      campaigns: uniq(records.map(r => r.campaign)),
       adsets: uniq(records.map(r => r.adset)),
       genders: uniq(records.map(r => r.gender)).sort(),
       ages: uniq(records.map(r => r.age)).sort(),
@@ -438,9 +480,14 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   }
 
   /* ---------- 彙總 ---------- */
-  function aggregate(records, start, end, adWhitelist) {
+  function aggregate(records, start, end, adWhitelist, campaignType, campaignTypeMap) {
     const byAdDate = new Map(), byAdset = new Map(), byGender = new Map(), byAge = new Map();
     const allow = adWhitelist ? new Set(adWhitelist) : null; // null = 全部素材
+    const mappedType = rec => {
+      if (campaignTypeMap && Object.prototype.hasOwnProperty.call(campaignTypeMap, rec.campaign))
+        return campaignTypeMap[rec.campaign] || null;
+      return rec.campaignType || detectTypeFromCampaign(rec.campaign);
+    };
     const add = (map, key, rec) => {
       if (!key) key = '未知';
       if (!map.has(key)) map.set(key, { spend: 0, values: {} });
@@ -449,8 +496,9 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     };
     for (const rec of records) {
       if (rec.date < start || rec.date > end) continue;
+      if (campaignType && mappedType(rec) !== campaignType) continue;
       const adKey = rec.ad || '未命名素材';
-      // byAdDate 保留全部素材(buildSheet 會自行挑選);受眾三表僅統計白名單內素材
+      // byAdDate 保留本分頁素材資料；複合模式已先依 Campaign type 篩選
       if (!byAdDate.has(adKey)) byAdDate.set(adKey, new Map());
       add(byAdDate.get(adKey), rec.date, rec);
       if (allow && !allow.has(adKey)) continue;
@@ -478,7 +526,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 
   /* ---------- 產表 ---------- */
   function buildSheet(wb, ExcelJS, parsed, config, sheetName) {
-    const tc = TYPE_CONFIG[config.type];
+    const tc = getTypeConfig(config.type, config.cpvBasis);
     if (!tc) throw new Error('未知的報表類型: ' + config.type);
 
     const selected = config.metrics
@@ -490,7 +538,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const creatives = config.creatives.filter(c => c.include !== false);
     // 受眾彙總只統計本分頁(本次 creatives)的素材;單一模式即全部素材
     const adWhitelist = creatives.map(c => c.raw);
-    const agg = aggregate(parsed.records, config.startDate, config.endDate, adWhitelist);
+    const agg = aggregate(parsed.records, config.startDate, config.endDate, adWhitelist, config.campaignType, config.campaignTypeMap);
 
     // 總計值(供素材總計估算與自動欄寬)
     const creTotals = creatives.map(c => {
@@ -760,39 +808,45 @@ const sectionDefs = [
     if (!config.composite) {
       warnings = buildSheet(wb, ExcelJS, parsed, config, config.type);
     } else {
-      // 複合模式:依素材指定的「分頁」分組(分頁隸屬某類型;預設分頁名=類型名)
+      // 複合模式：行銷活動決定數據歸屬，廣告名稱決定各分頁中的素材
       const order = ['CPM', 'CPC', 'LCPC', 'CPV'];
       const creatives = config.creatives.filter(c => c.include !== false);
       if (!creatives.length) throw new Error('複合模式下找不到任何素材');
-      // 分頁清單:依類型順序,同類型內依素材出現順序
-      const pages = [];
-      for (const t of order) {
-        for (const c of creatives) {
-          if ((c.type || config.type) !== t) continue;
-          const pg = c.page || t;
-          if (!pages.some(p => p.page === pg && p.type === t)) pages.push({ page: pg, type: t });
-        }
-      }
-      if (!pages.length) throw new Error('複合模式下找不到任何已指定類型的素材');
+      const includedAds = new Set(creatives.map(c => c.raw));
+      const campaignTypeMap = config.campaignTypeMap || {};
+      const mappedType = rec => Object.prototype.hasOwnProperty.call(campaignTypeMap, rec.campaign)
+        ? (campaignTypeMap[rec.campaign] || null)
+        : (rec.campaignType || detectTypeFromCampaign(rec.campaign));
+
+      const usedTypes = order.filter(t =>
+        parsed.records.some(rec => includedAds.has(rec.ad) && mappedType(rec) === t)
+      );
+      if (!usedTypes.length) throw new Error('複合模式下沒有可辨識的行銷活動類型');
+
       const usedNames = new Set();
-      for (const { page, type: t } of pages) {
+      for (const t of usedTypes) {
         const typeCfg = (config.typeConfigs && config.typeConfigs[t]) || {};
-        const pageCfg = (config.pageConfigs && config.pageConfigs[page]) || typeCfg;
+        const pageCfg = (config.pageConfigs && config.pageConfigs[t]) || typeCfg;
+        const adsForType = new Set(
+          parsed.records.filter(rec => includedAds.has(rec.ad) && mappedType(rec) === t).map(rec => rec.ad)
+        );
+        const sheetCreatives = creatives.filter(c => adsForType.has(c.raw));
         const sheetCfg = {
           type: t,
+          cpvBasis: config.cpvBasis || '3s',
+          campaignType: t,
+          campaignTypeMap,
           composite: false,
           name: pageCfg.name != null ? pageCfg.name : config.name,
           budget: pageCfg.budget != null ? pageCfg.budget : config.budget,
           unitPrice: pageCfg.unitPrice != null ? pageCfg.unitPrice : config.unitPrice,
           startDate: config.startDate,
           endDate: config.endDate,
-          // 欄位設定依「類型」共用;若未提供則沿用全域 metrics
           metrics: (typeCfg.metrics && typeCfg.metrics.length) ? typeCfg.metrics : config.metrics,
-          // 只放屬於本分頁的素材
-          creatives: creatives.filter(c => (c.type || config.type) === t && (c.page || t) === page),
+          creatives: sheetCreatives,
           sections: config.sections,
         };
-        warnings = warnings.concat(buildSheet(wb, ExcelJS, parsed, sheetCfg, sheetName(page, usedNames)));
+        warnings = warnings.concat(buildSheet(wb, ExcelJS, parsed, sheetCfg, sheetName(t, usedNames)));
       }
     }
     /* --- 內嵌設定:供「更新報表」還原(隱藏工作表,分段存 JSON) --- */
@@ -838,7 +892,7 @@ const sectionDefs = [
     return w;
   }
 
-  return { parseRaw, buildWorkbook, buildSheet, aggregate, listDays, METRIC_DEFS, TYPE_CONFIG, colLetter, defaultMetricsForType, readEmbeddedConfig };
+  return { parseRaw, buildWorkbook, buildSheet, aggregate, listDays, METRIC_DEFS, TYPE_CONFIG, colLetter, defaultMetricsForType, detectTypeFromCampaign, getTypeConfig, readEmbeddedConfig };
 });
 
 </script>
@@ -848,7 +902,8 @@ let parsed = null;
 let creativeState = []; // {raw,label,include,type,page} page=所屬分頁(預設=類型名)
 let metricState = [];   // 單一模式:{key,include} 依此順序產出欄位
 let typeMetricState = {}; // 複合模式:{CPM:[{key,include}],CPC:[...]} 欄位設定依「類型」共用
-let pageInfoState = {};   // 複合模式:{分頁名:{name,budget,unitPrice}} 基本資訊依「分頁」各一組
+let pageInfoState = {};   // 複合模式:{類型:{name,budget,unitPrice}}
+let campaignTypeState = {}; // {行銷活動名稱: CPM/CPC/LCPC/CPV/''}，可手動覆寫自動辨識
 let activeTab = null;     // 複合模式目前編輯的類型頁籤
 const ALL_TYPES = ['CPM', 'CPC', 'LCPC', 'CPV'];
 
@@ -861,10 +916,12 @@ function readXlsxRows(arrayBuffer) {
 // 用解析結果初始化全部設定狀態(建立新報表模式)
 function initFromParsed() {
   const mainType = document.querySelector('input[name=rtype]:checked').value;
-  creativeState = parsed.ads.map(a => ({ raw: a, label: a, include: true, type: mainType, page: mainType, image: null }));
+  creativeState = parsed.ads.map(a => ({ raw: a, label: a, include: true, image: null }));
   metricState = parsed.metricCols.map(m => ({ key: m.key, include: true }));
   typeMetricState = {};
   pageInfoState = {};
+  campaignTypeState = {};
+  for (const c of parsed.campaigns || []) campaignTypeState[c] = ReportGen.detectTypeFromCampaign(c) || '';
   const availKeys = parsed.metricCols.map(m => m.key);
   for (const t of ALL_TYPES) {
     typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys).map(k => ({ key: k, include: true }));
@@ -947,7 +1004,11 @@ function tryRestore() {
     const cfg = pendingOldConfig;
     // 還原全域設定
     $('compositeChk').checked = !!cfg.composite;
-    if (cfg.mainType) { const r = document.querySelector(`input[name=rtype][value=${cfg.mainType}]`); if (r) r.checked = true; }
+    const restoredMainType = cfg.mainType === 'CPV15' ? 'CPV' : cfg.mainType;
+    if (restoredMainType) { const r = document.querySelector(`input[name=rtype][value=${restoredMainType}]`); if (r) r.checked = true; }
+    const restoredBasis = cfg.mainType === 'CPV15' ? '15s' : (cfg.cpvBasis || '3s');
+    const br = document.querySelector(`input[name=cpvBasis][value=${restoredBasis}]`);
+    if (br) br.checked = true;
     if (cfg.single) { $('fName').value = cfg.single.name || ''; $('fBudget').value = cfg.single.budget || ''; $('fUnit').value = cfg.single.unitPrice || ''; }
     $('secInterest').checked = cfg.sections ? !!cfg.sections.interest : true;
     $('secGender').checked = cfg.sections ? !!cfg.sections.gender : true;
@@ -964,6 +1025,12 @@ function tryRestore() {
       typeMetricState[t] = reconcileMetrics((cfg.typeMetricState || {})[t], availKeys, t);
     pageInfoState = cfg.pageInfoState || {};
     for (const t of ALL_TYPES) ensurePageInfo(t);
+    campaignTypeState = {};
+    for (const c of parsed.campaigns || []) {
+      campaignTypeState[c] = (cfg.campaignTypeState && Object.prototype.hasOwnProperty.call(cfg.campaignTypeState, c))
+        ? cfg.campaignTypeState[c]
+        : (ReportGen.detectTypeFromCampaign(c) || '');
+    }
     // 素材對帳:依 raw 名稱比對
     const savedCre = cfg.creatives || [];
     const savedByRaw = new Map(savedCre.map(c => [c.raw, c]));
@@ -971,7 +1038,7 @@ function tryRestore() {
     creativeState = [];
     for (const c of savedCre) if (parsed.ads.includes(c.raw)) creativeState.push({ ...c });
     const newOnes = parsed.ads.filter(a => !savedByRaw.has(a));
-    for (const a of newOnes) creativeState.push({ raw: a, label: a, include: true, type: mainType, page: mainType, image: null });
+    for (const a of newOnes) creativeState.push({ raw: a, label: a, include: true, image: null });
     const missing = savedCre.filter(c => !parsed.ads.includes(c.raw)).map(c => c.raw);
     // 提示
     let html = '';
@@ -1006,11 +1073,14 @@ function renderParseResult() {
   let html = `<div class="chips">
     <span class="chip">資料日期 <b>${p.dateMin} ~ ${p.dateMax}</b></span>
     <span class="chip">素材 <b>${p.ads.length}</b> 個</span>
+    <span class="chip">行銷活動 <b>${(p.campaigns || []).length}</b> 個</span>
     <span class="chip">受眾 <b>${p.adsets.length}</b> 組</span>
     <span class="chip">數據欄位 <b>${p.metricCols.length}</b> 個</span>
     <span class="chip">有效列 <b>${p.records.length}</b></span>
   </div>`;
   if (p.skippedRows) html += `<div class="warn">已自動略過 ${p.skippedRows} 列彙總/非日期資料(如「總覽」列)</div>`;
+  const unknownCampaigns = (p.campaigns || []).filter(c => !ReportGen.detectTypeFromCampaign(c));
+  if (unknownCampaigns.length) html += `<div class="warn">有 ${unknownCampaigns.length} 個行銷活動無法自動辨識類型；開啟複合報表後可手動指定。</div>`;
   if (!p.hasSpend) html += `<div class="warn">找不到「花費含服務費」欄位,費用相關欄位將以 0 計</div>`;
   $('parseResult').innerHTML = html;
 }
@@ -1024,14 +1094,43 @@ function renderSettings() {
   applyMode();
 }
 
+function getCpvBasis() {
+  return (document.querySelector('input[name=cpvBasis]:checked') || {}).value || '3s';
+}
+function updateCpvBasisVisibility() {
+  const mainType = (document.querySelector('input[name=rtype]:checked') || {}).value;
+  const show = isComposite() ? usedTypes().includes('CPV') : mainType === 'CPV';
+  $('cpvBasisBox').style.display = show ? 'flex' : 'none';
+}
+function mappedCampaignType(campaign) {
+  if (Object.prototype.hasOwnProperty.call(campaignTypeState, campaign))
+    return campaignTypeState[campaign] || null;
+  return ReportGen.detectTypeFromCampaign(campaign);
+}
+function includedAdSet() {
+  return new Set(creativeState.filter(c => c.include !== false).map(c => c.raw));
+}
+function creativesForType(type) {
+  const ads = includedAdSet();
+  const hit = new Set(
+    parsed.records.filter(r => ads.has(r.ad) && mappedCampaignType(r.campaign) === type).map(r => r.ad)
+  );
+  return creativeState.filter(c => c.include !== false && hit.has(c.raw));
+}
+function typesForCreative(ad) {
+  const set = new Set(parsed.records.filter(r => r.ad === ad).map(r => mappedCampaignType(r.campaign)).filter(Boolean));
+  return ALL_TYPES.filter(t => set.has(t));
+}
+
 function applyMode() {
   const comp = isComposite();
   $('singleInfo').style.display = comp ? 'none' : '';
   $('singleMetricBox').style.display = comp ? 'none' : '';
   $('compositeInfo').style.display = comp ? '' : 'none';
   $('compositeMetricBox').style.display = comp ? '' : 'none';
-  // 單一模式的報表類型 radio 在複合模式下僅作為「主類型」預設來源,維持可用
+  $('campaignMapBox').style.display = comp ? '' : 'none';
   if (comp) {
+    renderCampaignMap();
     if (!activeTab || !usedTypes().includes(activeTab)) activeTab = usedTypes()[0] || null;
     renderTypeTabs();
     renderTypeMetrics();
@@ -1039,50 +1138,76 @@ function applyMode() {
   } else {
     renderMetrics();
   }
+  updateCpvBasisVisibility();
   renderCreatives();
   refresh();
 }
 
-// 目前素材實際用到的類型(依 ALL_TYPES 順序)
+// 目前實際有數據、且素材未被排除的類型
 function usedTypes() {
-  const set = new Set(creativeState.filter(c => c.include !== false).map(c => c.type));
+  if (!parsed) return [];
+  const ads = includedAdSet();
+  const set = new Set();
+  for (const rec of parsed.records) {
+    if (!ads.has(rec.ad)) continue;
+    const t = mappedCampaignType(rec.campaign);
+    if (t) set.add(t);
+  }
   return ALL_TYPES.filter(t => set.has(t));
 }
-// 目前素材實際用到的分頁(依類型順序,同類型內依素材出現順序):[{page,type}]
+// 複合報表固定一個類型一個分頁
 function usedPages() {
-  const pages = [];
-  for (const t of ALL_TYPES)
-    for (const c of creativeState) {
-      if (c.include === false || c.type !== t) continue;
-      const pg = c.page || t;
-      if (!pages.some(p => p.page === pg)) pages.push({ page: pg, type: t });
-    }
-  return pages;
+  return usedTypes().map(type => ({ page: type, type }));
 }
-// 某類型現有的分頁名清單(預設分頁=類型名,永遠在首位)
-function pagesForType(t) {
-  const set = new Set([t]);
-  creativeState.forEach(c => { if (c.type === t && c.page) set.add(c.page); });
-  return [...set];
-}
+function pagesForType(t) { return [t]; }
 function ensurePageInfo(pg) {
   if (!pageInfoState[pg]) pageInfoState[pg] = { name: '', budget: '', unitPrice: '' };
   return pageInfoState[pg];
 }
 // 某類型缺少的必要欄位(成本分母 / 比率分子分母),回傳缺漏的中文標籤
 function missingForType(t) {
-  const tc = ReportGen.TYPE_CONFIG[t];
+  const tc = ReportGen.getTypeConfig(t, getCpvBasis());
   const avail = new Set(parsed.metricCols.map(m => m.key));
   const need = new Set([tc.cost.den, tc.ratio.num, tc.ratio.den]);
   const miss = [...need].filter(k => !avail.has(k));
   return miss.length ? tc.cost.top : null; // 有缺就回傳成本欄名作提示依據
 }
 
+function renderCampaignMap() {
+  if (!parsed) return;
+  const campaigns = parsed.campaigns || [];
+  if (!campaigns.length) {
+    $('campaignMapList').innerHTML = '<div class="warn">Raw Data 找不到「行銷活動」欄，複合報表無法依 Campaign 正確拆分。</div>';
+    return;
+  }
+  $('campaignMapList').innerHTML = campaigns.map((c, i) => {
+    const cur = campaignTypeState[c] || '';
+    const auto = ReportGen.detectTypeFromCampaign(c);
+    return `<div class="campaign-map-row">
+      <div class="campaign-name" title="${esc(c)}">${esc(c)}${auto ? ` <span class="chip" style="margin-left:6px">自動:${auto}</span>` : ''}</div>
+      <select data-cmap="${i}" aria-label="行銷活動類型">
+        <option value="" ${cur === '' ? 'selected' : ''}>未辨識 / 不納入</option>
+        ${ALL_TYPES.map(t => `<option value="${t}" ${cur === t ? 'selected' : ''}>${t}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+}
+$('campaignMapList').addEventListener('change', e => {
+  if (e.target.dataset.cmap == null) return;
+  const c = (parsed.campaigns || [])[+e.target.dataset.cmap];
+  if (!c) return;
+  campaignTypeState[c] = e.target.value;
+  if (!usedTypes().includes(activeTab)) activeTab = usedTypes()[0] || null;
+  renderTypeTabs(); renderTypeMetrics(); renderTypeInfos(); renderCreatives();
+  updateCpvBasisVisibility();
+  refresh();
+});
+
 function renderTypeTabs() {
   const used = usedTypes();
   $('metricTabs').innerHTML = used.map(t =>
     `<button class="type-tab${t === activeTab ? ' active' : ''}" data-tab="${t}">${t}</button>`).join('')
-    || '<span style="color:var(--slate);font-size:13px">尚未有素材指定類型</span>';
+    || '<span style="color:var(--slate);font-size:13px">尚未辨識到可用的行銷活動類型</span>';
 }
 $('metricTabs').addEventListener('click', e => {
   const t = e.target.dataset.tab;
@@ -1138,11 +1263,11 @@ $('metricListComposite').addEventListener('input', e => {
 
 function renderTypeInfos() {
   const pages = usedPages();
-  if (!pages.length) { $('typeInfoList').innerHTML = '<div style="color:var(--slate);font-size:13px">尚未有素材指定類型</div>'; return; }
+  if (!pages.length) { $('typeInfoList').innerHTML = '<div style="color:var(--slate);font-size:13px">尚未辨識到可用的行銷活動類型</div>'; return; }
   $('typeInfoList').innerHTML = pages.map(({ page, type }) => {
     const info = ensurePageInfo(page);
-    const tc = ReportGen.TYPE_CONFIG[type];
-    const n = creativeState.filter(c => c.include !== false && c.type === type && (c.page || type) === page).length;
+    const tc = ReportGen.getTypeConfig(type, getCpvBasis());
+    const n = creativesForType(type).length;
     return `<div class="type-info-card">
       <h4><span class="badge">${esc(page)}</span>${type} 分頁 · ${n} 個素材</h4>
       <div class="grid">
@@ -1160,30 +1285,28 @@ $('typeInfoList').addEventListener('input', e => {
 
 $('compositeChk').addEventListener('change', applyMode);
 
-// 主類型 radio:單一模式直接套用;複合模式視為「重設所有素材預設類型」
+// 單一模式的報表類型；複合模式的實際分頁由「行銷活動」辨識結果決定
 document.querySelectorAll('input[name=rtype]').forEach(r => r.addEventListener('change', () => {
   if (!parsed) return;
-  if (isComposite()) {
-    const mt = document.querySelector('input[name=rtype]:checked').value;
-    creativeState.forEach(c => { c.type = mt; c.page = mt; });
-    activeTab = mt;
-    renderTypeTabs(); renderTypeMetrics(); renderTypeInfos(); renderCreatives();
-  }
+  updateCpvBasisVisibility();
+  refresh();
+}));
+document.querySelectorAll('input[name=cpvBasis]').forEach(r => r.addEventListener('change', () => {
+  if (!parsed) return;
+  renderTypeInfos();
+  if (isComposite()) renderTypeMetrics();
   refresh();
 }));
 
 function renderCreatives() {
   const comp = isComposite();
   $('creativeList').innerHTML = creativeState.map((c, i) => {
-    const miss = comp ? missingForType(c.type) : null;
-    const pg = c.page || c.type;
-    const pageOpts = comp ? pagesForType(c.type) : [];
-    const sel = comp ? `<select data-ct="${i}" aria-label="素材類型" title="優化目標類型">
-        ${ALL_TYPES.map(t => `<option value="${t}" ${c.type === t ? 'selected' : ''}>${t}</option>`).join('')}
-      </select><select data-cp="${i}" aria-label="產出分頁" title="產出到哪個分頁">
-        ${pageOpts.map(p => `<option value="${esc(p)}" ${pg === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
-        <option value="__new">➕ 新增分頁…</option>
-      </select>${miss ? `<span class="cre-miss">缺${esc(miss)}欄</span>` : ''}` : '';
+    const types = comp ? typesForCreative(c.raw) : [];
+    const typeTags = comp
+      ? `<div class="creative-types" title="依行銷活動自動判斷">${types.length
+          ? types.map(t => `<span class="chip">${t}</span>`).join('')
+          : '<span class="warn-tag">未辨識 Campaign</span>'}</div>`
+      : '';
     const imgCell = c.image
       ? `<div class="img-cell" data-img="${i}" title="更換上刊圖:${esc(c.image.filename || '')}"><img src="data:image/${c.image.extension === 'jpg' ? 'jpeg' : c.image.extension};base64,${c.image.base64}" alt="上刊圖"><span class="img-x" data-imgx="${i}" title="移除">✕</span></div>`
       : `<div class="img-cell" data-img="${i}" title="上傳上刊圖">🖼</div>`;
@@ -1191,7 +1314,7 @@ function renderCreatives() {
       <label class="ck" style="border:none;background:none;padding:0"><input type="checkbox" data-ci="${i}" ${c.include ? 'checked' : ''}></label>
       ${imgCell}
       <input type="text" data-cl="${i}" value="${esc(c.label)}" aria-label="素材顯示名稱">
-      ${sel}
+      ${typeTags}
       <button data-up="${i}" title="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
       <button data-dn="${i}" title="下移" ${i === creativeState.length - 1 ? 'disabled' : ''}>↓</button>
     </div>`;
@@ -1307,28 +1430,11 @@ $('creativeList').addEventListener('click', e => {
 });
 $('creativeList').addEventListener('input', e => {
   if (e.target.dataset.cl != null) creativeState[+e.target.dataset.cl].label = e.target.value;
-  if (e.target.dataset.ci != null) creativeState[+e.target.dataset.ci].include = e.target.checked;
-  if (e.target.dataset.ct != null) {
-    const c = creativeState[+e.target.dataset.ct];
-    c.type = e.target.value;
-    c.page = c.type; // 換類型時分頁重設為該類型預設
+  if (e.target.dataset.ci != null) {
+    creativeState[+e.target.dataset.ci].include = e.target.checked;
     if (!usedTypes().includes(activeTab)) activeTab = usedTypes()[0] || null;
     renderTypeTabs(); renderTypeMetrics(); renderTypeInfos(); renderCreatives();
-  }
-  if (e.target.dataset.cp != null) {
-    const i = +e.target.dataset.cp;
-    const c = creativeState[i];
-    if (e.target.value === '__new') {
-      const name = (window.prompt('輸入新分頁名稱(將作為 Excel 工作表名):', `${c.type}_2`) || '').trim();
-      const allPages = new Set(ALL_TYPES.flatMap(t => pagesForType(t)));
-      if (!name) { renderCreatives(); refresh(); return; } // 取消或空白:還原下拉
-      if (allPages.has(name)) { alert('分頁名稱已存在,請換一個名稱'); renderCreatives(); refresh(); return; }
-      c.page = name;
-      ensurePageInfo(name);
-    } else {
-      c.page = e.target.value;
-    }
-    renderTypeInfos(); renderCreatives();
+    updateCpvBasisVisibility();
   }
   refresh();
 });
@@ -1340,6 +1446,8 @@ function currentConfig() {
   const base = {
     startDate: $('fStart').value, endDate: $('fEnd').value,
     creatives: creativeState,
+    cpvBasis: getCpvBasis(),
+    campaignTypeMap: { ...campaignTypeState },
     sections: { interest: $('secInterest').checked, gender: $('secGender').checked, age: $('secAge').checked },
   };
   if (!isComposite()) {
@@ -1378,7 +1486,7 @@ function refresh() {
   const cfg = currentConfig();
   const days = (cfg.startDate && cfg.endDate && cfg.endDate >= cfg.startDate) ? ReportGen.listDays(cfg.startDate, cfg.endDate).length : 0;
   if (!cfg.composite) {
-    const tc = ReportGen.TYPE_CONFIG[cfg.type];
+    const tc = ReportGen.getTypeConfig(cfg.type, cfg.cpvBasis);
     $('unitLabel').textContent = tc.unitLabel + ' 單價';
     renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length);
     const nCre = cfg.creatives.filter(c => c.include !== false).length;
@@ -1387,19 +1495,19 @@ function refresh() {
   } else {
     // 藍圖顯示目前頁籤類型的版型
     if (activeTab) {
-      const tc = ReportGen.TYPE_CONFIG[activeTab];
+      const tc = ReportGen.getTypeConfig(activeTab, cfg.cpvBasis);
       const mets = (typeMetricState[activeTab] || []).filter(m => m.include).map(m => m.key);
-      const n = creativeState.filter(c => c.include !== false && c.type === activeTab).length;
+      const n = creativesForType(activeTab).length;
       renderBlueprintSingle(mets, tc, n, activeTab);
     } else $('bpRow').innerHTML = '';
     const pages = usedPages();
     const parts = pages.map(({ page, type }) => {
-      const n = creativeState.filter(c => c.include !== false && c.type === type && (c.page || type) === page).length;
+      const n = creativesForType(type).length;
       return `${page}(${n}素材)`;
     });
     $('genSummary').textContent = pages.length
       ? `複合報表 · ${days} 天 · 將產出 ${pages.length} 個分頁:${parts.join('、')}`
-      : '複合模式:請至少指定一個素材的類型';
+      : '複合模式:目前沒有可辨識的行銷活動類型';
   }
 }
 
@@ -1431,7 +1539,7 @@ $('btnGen').addEventListener('click', async () => {
       if (!cfg.metrics.length) throw new Error('請至少勾選一個數據欄位');
     } else {
       const used = usedTypes();
-      if (!used.length) throw new Error('複合模式:請至少指定一個素材的類型');
+      if (!used.length) throw new Error('複合模式:目前沒有可辨識的行銷活動類型');
       for (const t of used)
         if (!cfg.typeConfigs[t].metrics.length) throw new Error(`${t} 分頁尚未勾選任何數據欄位`);
     }
@@ -1443,6 +1551,8 @@ $('btnGen').addEventListener('click', async () => {
       single: { name: $('fName').value.trim(), budget: $('fBudget').value, unitPrice: $('fUnit').value },
       startDate: cfg.startDate, endDate: cfg.endDate,
       sections: cfg.sections,
+      cpvBasis: cfg.cpvBasis,
+      campaignTypeState,
       metricState, typeMetricState, pageInfoState,
       creatives: creativeState,
     };
@@ -1451,7 +1561,10 @@ $('btnGen').addEventListener('click', async () => {
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-const baseName = (cfg.name || '廣告報表');
+const firstPageName = cfg.composite
+  ? ((cfg.pageConfigs && usedTypes().length && cfg.pageConfigs[usedTypes()[0]] && cfg.pageConfigs[usedTypes()[0]].name) || '')
+  : '';
+const baseName = (cfg.name || firstPageName || '廣告報表');
 
 const now = new Date();
 const mmdd =
