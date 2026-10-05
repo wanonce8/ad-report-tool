@@ -316,8 +316,9 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   { key: 'reach',       top: '每日', bottom: '觸及人數', match: n => n.includes('觸及人數') },
   { key: 'clicks',      top: '廣告', bottom: '點擊次數', match: n => n.includes('點擊次數') && n.includes('全部') },
   { key: 'linkClicks',  top: '連結', bottom: '點擊次數', match: n => n.includes('連結點擊次數') },
-  { key: 'conversionValue', top: '轉換', bottom: '價值', match: n => /(購買|轉換|purchase|conversion).*(價值|value)|營收|收入/i.test(n) && !/(成本|cost)/i.test(n) },
-  { key: 'conversions', top: '轉換', bottom: '次數', match: n => /(購買次數|網站購買|購買$|轉換次數|成果$|潛在顧客|名單|lead|完成註冊|註冊|purchase|conversion)/i.test(n) && !/(價值|value|成本|cost|率|rate)/i.test(n) },
+  { key: 'addToCart', top: '購物車', bottom: '新增品項次數', match: n => /(購物車.*新增.*品項.*次數|加入購物車|add.?to.?cart)/i.test(n) && !/(價值|value|成本|cost|率|rate)/i.test(n) },
+  { key: 'conversions', top: '轉換', bottom: '次數', match: n => /(購買次數|網站購買|購買$|轉換次數|成果$|潛在顧客|名單|lead|完成註冊|註冊|purchase|conversion)/i.test(n) && !/(價值|value|成本|cost|率|rate|購物車|cart)/i.test(n) },
+  { key: 'conversionValue', top: '購買', bottom: '轉換值', match: n => /(購買|轉換|purchase|conversion).*(價值|轉換值|value)|營收|收入/i.test(n) && !/(成本|cost)/i.test(n) },
   { key: 'pageLikes',   top: '加入', bottom: '粉絲人數', match: n => n.includes('粉絲專頁的讚') },
   { key: 'postLikes',   top: '貼文', bottom: '按讚次數', match: n => n.includes('貼文的讚') },
   { key: 'comments',    top: '貼文', bottom: '留言次數', match: n => n.includes('貼文留言') },
@@ -415,7 +416,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   CPC:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
   LCPC: ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
   CPV:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
-  CPA:  ['impressions', 'reach', 'clicks', 'linkClicks', 'conversions', 'conversionValue', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
+  CPA:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'addToCart', 'conversions', 'conversionValue', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
 };
   // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
   function defaultMetricsForType(type, availableKeys) {
@@ -1152,6 +1153,13 @@ function metricRawName(key) {
   const m = parsed && parsed.metricCols ? parsed.metricCols.find(x => x.key === key) : null;
   return m ? m.rawName : '';
 }
+function cleanMetricDisplayName(name) {
+  return String(name || '')
+    .replace(/\s*[（(]\s*Facebook\s*像素\s*[）)]/gi, '')
+    .replace(/\s*Facebook\s*像素/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 function ensureMetricIncluded(list, key) {
   if (!key || !list) return;
   const hit = list.find(m => m.key === key);
@@ -1159,7 +1167,7 @@ function ensureMetricIncluded(list, key) {
 }
 function renderConversionSelectors() {
   if (!parsed) return;
-  const opts = parsed.metricCols.map(m => `<option value="${esc(m.key)}">${esc((m.top || '') + (m.bottom || ''))}｜${esc(m.rawName || '')}</option>`).join('');
+  const opts = parsed.metricCols.map(m => `<option value="${esc(m.key)}">${esc((m.top || '') + (m.bottom || ''))}｜${esc(cleanMetricDisplayName(m.rawName || ''))}</option>`).join('');
   $('conversionMetricSelect').innerHTML = `<option value="">請選擇轉換次數欄位</option>${opts}`;
   $('conversionValueMetricSelect').innerHTML = `<option value="">不計算 ROAS</option>${opts}`;
   $('conversionMetricSelect').value = conversionMetricState || '';
@@ -1328,7 +1336,7 @@ function renderTypeMetrics() {
       <input type="checkbox" data-tmi="${i}" ${ms.include ? 'checked' : ''} ${missing ? 'disabled' : ''} aria-label="是否產出 ${esc(m ? m.top + m.bottom : ms.key)}">
       <span class="ord mono">${i + 1}</span>
       <span class="mname">${m ? esc(m.top) + esc(m.bottom) : esc(ms.key)}</span>
-      <span class="raw" title="${m ? esc(m.rawName) : ''}">${m ? esc(m.rawName) : ''}</span>
+      <span class="raw" title="${m ? esc(cleanMetricDisplayName(m.rawName)) : ''}">${m ? esc(cleanMetricDisplayName(m.rawName)) : ''}</span>
       ${missing ? '<span class="miss-tag">缺此欄</span>' : ''}
       <button data-tmup="${i}" title="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
       <button data-tmdn="${i}" title="下移" ${i === list.length - 1 ? 'disabled' : ''}>↓</button>
@@ -1447,7 +1455,7 @@ function renderMetrics() {
       <input type="checkbox" data-mi="${i}" ${ms.include ? 'checked' : ''} aria-label="是否產出 ${esc(m.top + m.bottom)}">
       <span class="ord mono">${i + 1}</span>
       <span class="mname">${esc(m.top)}${esc(m.bottom)}</span>
-      <span class="raw" title="${esc(m.rawName)}">${esc(m.rawName)}</span>
+      <span class="raw" title="${esc(cleanMetricDisplayName(m.rawName))}">${esc(cleanMetricDisplayName(m.rawName))}</span>
       <button data-mup="${i}" title="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
       <button data-mdn="${i}" title="下移" ${i === metricState.length - 1 ? 'disabled' : ''}>↓</button>
     </div>`;
