@@ -672,6 +672,9 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       const style = { font: { color: { argb: WHITE } }, fill: fill(DKBLUE), border };
       if (k === '__ratio') set(rTot, c, { formula: ifErr(`${cellFor(tc.ratio.num, start)}${rTot}/${cellFor(tc.ratio.den, start)}${rTot}`), numFmt: FMT.ratio, ...style });
       else if (k === '__cost') set(rTot, c, { formula: ifErr(`${cellFor('__fee', start)}${rTot}/${cellFor(tc.cost.den, start)}${rTot}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
+      // Reach（每日觸及人數）為去重後的 non-additive metric，跨日不可直接 SUM。
+      // 總計列保留版型與儲存格樣式，但不產生加總值。
+      else if (k === 'reach') set(rTot, c, { value: null, numFmt: FMT.metric, ...style });
       else set(rTot, c, { formula: `SUM(${colLetter(c)}${r0}:${colLetter(c)}${rEnd})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
     });
     totGroup(dStart);
@@ -729,6 +732,8 @@ const sectionDefs = [
         const style = { font: { color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', l, rr) };
         if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: FMT.ratio, ...style });
         else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
+        // Reach 不可由性別／年齡／興趣分群直接加總，避免重複觸及被誤當總觸及。
+        else if (k === 'reach') set(r, c, { value: null, numFmt: FMT.metric, ...style });
         else set(r, c, { formula: `SUM(${colLetter(c)}${rs + 2}:${colLetter(c)}${r - 1})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
       });
       rs = r + 2;
