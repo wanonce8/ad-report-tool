@@ -155,7 +155,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <header>
   <div class="wrap">
     <h1>廣告成效報表產生器</h1>
-    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV</span>
+    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / ROAS</span>
   </div>
 </header>
 
@@ -195,11 +195,22 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           <label class="type-opt"><input type="radio" name="rtype" value="CPC"><span>CPC<small>費用 ÷ 點擊次數</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="LCPC"><span>LCPC<small>費用 ÷ 連結點擊</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="CPV"><span>CPV<small>3秒 / 15秒觀看可選</small></span></label>
+          <label class="type-opt"><input type="radio" name="rtype" value="CPA"><span>CPA / ROAS<small>轉換成本 + 投報率</small></span></label>
         </div>
         <div class="cpv-basis" id="cpvBasisBox" style="display:none">
           <span class="basis-title">CPV 觀看口徑</span>
           <label><input type="radio" name="cpvBasis" value="3s" checked>3 秒觀看</label>
           <label><input type="radio" name="cpvBasis" value="15s">15 秒 / ThruPlay</label>
+        </div>
+        <div class="cpv-basis" id="conversionBasisBox" style="display:none">
+          <span class="basis-title">轉換口徑</span>
+          <label style="display:flex;align-items:center;gap:6px">CPA 分母
+            <select id="conversionMetricSelect" class="creative-type" aria-label="CPA 轉換欄位"></select>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px">ROAS 價值
+            <select id="conversionValueMetricSelect" class="creative-type" aria-label="ROAS 轉換價值欄位"></select>
+          </label>
+          <span class="batch-note">可指定購買、名單、註冊或自訂轉換欄；ROAS = 轉換價值 ÷ 廣告費用</span>
         </div>
         <label class="composite-toggle"><input type="checkbox" id="compositeChk">
           <span><b>複合目標報表</b>：依行銷活動名稱自動辨識類型,各類型分別產出不同分頁</span></label>
@@ -305,6 +316,8 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   { key: 'reach',       top: '每日', bottom: '觸及人數', match: n => n.includes('觸及人數') },
   { key: 'clicks',      top: '廣告', bottom: '點擊次數', match: n => n.includes('點擊次數') && n.includes('全部') },
   { key: 'linkClicks',  top: '連結', bottom: '點擊次數', match: n => n.includes('連結點擊次數') },
+  { key: 'conversionValue', top: '轉換', bottom: '價值', match: n => /(購買|轉換|purchase|conversion).*(價值|value)|營收|收入/i.test(n) && !/(成本|cost)/i.test(n) },
+  { key: 'conversions', top: '轉換', bottom: '次數', match: n => /(購買次數|網站購買|購買$|轉換次數|成果$|潛在顧客|名單|lead|完成註冊|註冊|purchase|conversion)/i.test(n) && !/(價值|value|成本|cost|率|rate)/i.test(n) },
   { key: 'pageLikes',   top: '加入', bottom: '粉絲人數', match: n => n.includes('粉絲專頁的讚') },
   { key: 'postLikes',   top: '貼文', bottom: '按讚次數', match: n => n.includes('貼文的讚') },
   { key: 'comments',    top: '貼文', bottom: '留言次數', match: n => n.includes('貼文留言') },
@@ -355,12 +368,25 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     ratio: { top: 'VTR', num: 'video3s', den: 'impressions' },
     cost: { top: 'CPV', den: 'video3s' }
   },
+
+  CPA: {
+    unitLabel: 'CPA',
+    planLabel: '預計轉換次數',
+    planExpr: 'B3/B5',
+    ratio: { top: 'ROAS', num: 'conversionValue', den: '__fee', numFmt: '0.00x', optional: true },
+    cost: { top: 'CPA', den: 'conversions' }
+  },
 };
 
   // CPV 是同一種報表，僅切換觀看口徑（3秒 / 15秒 ThruPlay）
-  function getTypeConfig(type, cpvBasis) {
+  function getTypeConfig(type, cpvBasis, conversionMetric, conversionValueMetric) {
     const base = TYPE_CONFIG[type];
     if (!base) return null;
+    if (type === 'CPA') return {
+      ...base,
+      cost: { ...base.cost, den: conversionMetric || 'conversions' },
+      ratio: { ...base.ratio, num: conversionValueMetric === '' ? null : (conversionValueMetric || 'conversionValue') },
+    };
     if (type !== 'CPV') return base;
     const use15 = cpvBasis === '15s';
     return {
@@ -375,6 +401,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   function detectTypeFromCampaign(name) {
     const n = String(name || '').toLowerCase();
     if (!n) return null;
+    if (/cpa|roas|轉換|conversion|purchase|購買|名單|lead|註冊|register/.test(n)) return 'CPA';
     if (/lcpc|導流|link/.test(n)) return 'LCPC';
     if (/cpv|觀看|video|thruplay/.test(n)) return 'CPV';
     if (/cpc|互動|allclick/.test(n)) return 'CPC';
@@ -388,6 +415,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   CPC:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
   LCPC: ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
   CPV:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
+  CPA:  ['impressions', 'reach', 'clicks', 'linkClicks', 'conversions', 'conversionValue', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
 };
   // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
   function defaultMetricsForType(type, availableKeys) {
@@ -495,12 +523,15 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       for (const k in rec.values) t.values[k] = (t.values[k] || 0) + rec.values[k];
     };
     for (const rec of records) {
-      if (rec.date < start || rec.date > end) continue;
+      // 走期前資料不納入；走期結束後若 Raw Data 仍有歸因／延遲回補數據，
+      // 全部併入走期最後一天，讓對外報表日期維持在設定走期內。
+      if (rec.date < start) continue;
       if (campaignType && mappedType(rec) !== campaignType) continue;
+      const effectiveDate = rec.date > end ? end : rec.date;
       const adKey = rec.ad || '未命名素材';
       // byAdDate 保留本分頁素材資料；複合模式已先依 Campaign type 篩選
       if (!byAdDate.has(adKey)) byAdDate.set(adKey, new Map());
-      add(byAdDate.get(adKey), rec.date, rec);
+      add(byAdDate.get(adKey), effectiveDate, rec);
       if (allow && !allow.has(adKey)) continue;
       add(byAdset, rec.adset, rec);
       add(byGender, rec.gender, rec);
@@ -520,19 +551,19 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     return o;
   };
   const FMT = {
-    metric: '#,##0_);[Red](#,##0)', ratio: '0.00%', cost: '0.00_ ', fee: '#,##0',
+    metric: '#,##0_);[Red](#,##0)', ratio: '0.00%', multiple: '0.00x', cost: '0.00_ ', fee: '#,##0',
     date: 'mm-dd-yy', budget: '"NT$"#,##0_);("NT$"#,##0)', plan: '0_);[Red](0)', unit: '0.0_);[Red](0.0)',
   };
 
   /* ---------- 產表 ---------- */
   function buildSheet(wb, ExcelJS, parsed, config, sheetName) {
-    const tc = getTypeConfig(config.type, config.cpvBasis);
+    const tc = getTypeConfig(config.type, config.cpvBasis, config.conversionMetric, config.conversionValueMetric);
     if (!tc) throw new Error('未知的報表類型: ' + config.type);
 
     const selected = config.metrics
       .map(k => parsed.metricCols.find(m => m.key === k)).filter(Boolean);
     const selKeys = selected.map(m => m.key);
-    const hasRatio = selKeys.includes(tc.ratio.num) && selKeys.includes(tc.ratio.den);
+    const hasRatio = !!tc.ratio.num && selKeys.includes(tc.ratio.num) && (tc.ratio.den === '__fee' ? parsed.hasSpend : selKeys.includes(tc.ratio.den));
     const hasCost = parsed.hasSpend && selKeys.includes(tc.cost.den);
     const days = listDays(config.startDate, config.endDate);
     const creatives = config.creatives.filter(c => c.include !== false);
@@ -647,7 +678,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           const c = bStart + j, [l, rr] = vSide(c), border = bd('thin', 'thin', l, rr);
           const greyFill = has ? undefined : fill(GREY);
           // 非走期整列反灰:比率/成本欄保留 0 值但儲存格也反灰;數據欄與費用欄反灰留空
-          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, bStart)}${r}/${cellFor(tc.ratio.den, bStart)}${r}`), numFmt: FMT.ratio, fill: greyFill, border });
+          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, bStart)}${r}/${cellFor(tc.ratio.den, bStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, fill: greyFill, border });
           else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', bStart)}${r}/${cellFor(tc.cost.den, bStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, fill: greyFill, border });
           else if (!has) set(r, c, { fill: fill(GREY), border });
           else if (k === '__fee') set(r, c, { value: Math.round(data.spend * 100) / 100, numFmt: FMT.fee, border });
@@ -657,7 +688,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       groupKeys.forEach((k, j) => {
         const c = dStart + j, [l, rr] = vSide(c), border = bd('thin', 'thin', l, rr);
         const greyFill = dailyHasData ? undefined : fill(GREY);
-        if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: FMT.ratio, fill: greyFill, border });
+        if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, fill: greyFill, border });
         else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, fill: greyFill, border });
         else if (!dailyHasData) set(r, c, { fill: fill(GREY), border });
         else set(r, c, { formula: blocks.map(b => `${cellFor(k, b)}${r}`).join('+') || '0', numFmt: k === '__fee' ? FMT.fee : FMT.metric, border });
@@ -670,7 +701,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const totGroup = start => groupKeys.forEach((k, j) => {
       const c = start + j, [l, rr] = vSide(c), border = bd('medium', 'medium', l, rr);
       const style = { font: { color: { argb: WHITE } }, fill: fill(DKBLUE), border };
-      if (k === '__ratio') set(rTot, c, { formula: ifErr(`${cellFor(tc.ratio.num, start)}${rTot}/${cellFor(tc.ratio.den, start)}${rTot}`), numFmt: FMT.ratio, ...style });
+      if (k === '__ratio') set(rTot, c, { formula: ifErr(`${cellFor(tc.ratio.num, start)}${rTot}/${cellFor(tc.ratio.den, start)}${rTot}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...style });
       else if (k === '__cost') set(rTot, c, { formula: ifErr(`${cellFor('__fee', start)}${rTot}/${cellFor(tc.cost.den, start)}${rTot}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
       // Reach（每日觸及人數）為去重後的 non-additive metric，跨日不可直接 SUM。
       // 總計列保留版型與儲存格樣式，但不產生加總值。
@@ -682,7 +713,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     set(rTot + 1, 1, { value: '總預算', font: { bold: true }, fill: fill(YELLOW), border: bd('medium', null, 'medium', 'thin') });
     set(rTot + 1, 2, { formula: 'B3', numFmt: FMT.fee, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('medium', null, 'thin', 'medium'), h: 'center' });
     set(rTot + 2, 1, { value: '總執行率', font: { bold: true }, fill: fill(YELLOW), border: bd('thin', 'medium', 'medium', 'thin') });
-    set(rTot + 2, 2, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/B${rTot + 1}`), numFmt: FMT.ratio, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('thin', 'medium', 'thin', 'medium'), h: 'center' });
+    set(rTot + 2, 2, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/B${rTot + 1}`), numFmt: tc.ratio.numFmt || FMT.ratio, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('thin', 'medium', 'thin', 'medium'), h: 'center' });
 
     /* --- 興趣群組 / 性別 / 年齡(欄位鏡射每日總表) --- */
     let rs = rTot + 4;
@@ -718,7 +749,7 @@ const sectionDefs = [
         set(r, 1, { value: gk, border: bd('thin', 'thin', ...audSide(1)) });
         groupKeys.forEach((k, j) => {
           const c = dStart + j, [l, rr] = audSide(c), border = bd('thin', 'thin', l, rr);
-          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: FMT.ratio, border });
+          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, border });
           else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, border });
           else if (k === '__fee') set(r, c, { value: Math.round(d.spend * 100) / 100, numFmt: FMT.fee, border });
           else set(r, c, { value: d.values[k] || 0, numFmt: FMT.metric, border });
@@ -730,7 +761,7 @@ const sectionDefs = [
       groupKeys.forEach((k, j) => {
         const c = dStart + j, [l, rr] = audSide(c);
         const style = { font: { color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', l, rr) };
-        if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: FMT.ratio, ...style });
+        if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...style });
         else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
         // Reach 不可由性別／年齡／興趣分群直接加總，避免重複觸及被誤當總觸及。
         else if (k === 'reach') set(r, c, { value: null, numFmt: FMT.metric, ...style });
@@ -815,7 +846,7 @@ const sectionDefs = [
       warnings = buildSheet(wb, ExcelJS, parsed, config, config.type);
     } else {
       // 複合模式：行銷活動決定數據歸屬，廣告名稱決定各分頁中的素材
-      const order = ['CPM', 'CPC', 'LCPC', 'CPV'];
+      const order = ['CPM', 'CPC', 'LCPC', 'CPV', 'CPA'];
       const creatives = config.creatives.filter(c => c.include !== false);
       if (!creatives.length) throw new Error('複合模式下找不到任何素材');
       const includedAds = new Set(creatives.map(c => c.raw));
@@ -840,6 +871,8 @@ const sectionDefs = [
         const sheetCfg = {
           type: t,
           cpvBasis: config.cpvBasis || '3s',
+          conversionMetric: config.conversionMetric || 'conversions',
+          conversionValueMetric: config.conversionValueMetric || 'conversionValue',
           campaignType: t,
           campaignTypeMap,
           composite: false,
@@ -892,7 +925,7 @@ const sectionDefs = [
 
   function buildWarnings(parsed, tc, hasRatio, hasCost) {
     const w = [];
-    if (!hasRatio) w.push(`Raw Data 缺少或未勾選「${tc.ratio.top}」所需欄位,該欄不產出`);
+    if (!hasRatio && !tc.ratio.optional) w.push(`Raw Data 缺少或未勾選「${tc.ratio.top}」所需欄位,該欄不產出`);
     if (!hasCost) w.push(`Raw Data 缺少或未勾選「${tc.cost.top}」所需欄位,成本欄不產出`);
     if (!parsed.hasSpend) w.push('Raw Data 找不到「花費含服務費」欄位,費用以 0 計');
     return w;
@@ -909,9 +942,11 @@ let creativeState = []; // {raw,label,include,type,page} page=所屬分頁(預�
 let metricState = [];   // 單一模式:{key,include} 依此順序產出欄位
 let typeMetricState = {}; // 複合模式:{CPM:[{key,include}],CPC:[...]} 欄位設定依「類型」共用
 let pageInfoState = {};   // 複合模式:{類型:{name,budget,unitPrice}}
-let campaignTypeState = {}; // {行銷活動名稱: CPM/CPC/LCPC/CPV/''}，可手動覆寫自動辨識
+let campaignTypeState = {}; // {行銷活動名稱: CPM/CPC/LCPC/CPV/CPA/''}，可手動覆寫自動辨識
 let activeTab = null;     // 複合模式目前編輯的類型頁籤
-const ALL_TYPES = ['CPM', 'CPC', 'LCPC', 'CPV'];
+let conversionMetricState = '';      // CPA 分母欄位 key
+let conversionValueMetricState = ''; // ROAS 價值欄位 key
+const ALL_TYPES = ['CPM', 'CPC', 'LCPC', 'CPV', 'CPA'];
 
 /* ---------- 步驟 1:上傳解析 ---------- */
 function readXlsxRows(arrayBuffer) {
@@ -938,6 +973,8 @@ function initFromParsed() {
   pageInfoState = {};
   campaignTypeState = {};
   for (const c of parsed.campaigns || []) campaignTypeState[c] = ReportGen.detectTypeFromCampaign(c) || '';
+  conversionMetricState = pickConversionMetric(false);
+  conversionValueMetricState = pickConversionMetric(true);
   for (const t of ALL_TYPES) {
     typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys)
       .map(k => ({ key: k, include: defaultMetricInclude(k) }));
@@ -1039,6 +1076,8 @@ function tryRestore() {
     typeMetricState = {};
     for (const t of ALL_TYPES)
       typeMetricState[t] = reconcileMetrics((cfg.typeMetricState || {})[t], availKeys, t);
+    conversionMetricState = resolveSavedMetric(cfg.conversionMetricState, cfg.conversionMetricRaw, false);
+    conversionValueMetricState = resolveSavedMetric(cfg.conversionValueMetricState, cfg.conversionValueMetricRaw, true);
     pageInfoState = cfg.pageInfoState || {};
     for (const t of ALL_TYPES) ensurePageInfo(t);
     campaignTypeState = {};
@@ -1084,6 +1123,49 @@ function reconcileMetrics(saved, availKeys, typeForDefault) {
   return out;
 }
 
+function pickConversionMetric(wantValue) {
+  if (!parsed || !parsed.metricCols) return '';
+  const exact = parsed.metricCols.find(m => m.key === (wantValue ? 'conversionValue' : 'conversions'));
+  if (exact) return exact.key;
+  const score = m => {
+    const n = `${m.top || ''} ${m.bottom || ''} ${m.rawName || ''}`;
+    if (wantValue) {
+      if (/(購買|轉換|purchase|conversion).*(價值|value)|營收|收入/i.test(n) && !/(成本|cost)/i.test(n)) return 10;
+    } else {
+      if (/(購買次數|網站購買|轉換次數|成果|潛在顧客|名單|lead|完成註冊|註冊|purchase|conversion)/i.test(n) && !/(價值|value|成本|cost|率|rate)/i.test(n)) return 10;
+    }
+    return 0;
+  };
+  const ranked = parsed.metricCols.map(m => [m, score(m)]).filter(x => x[1] > 0).sort((a,b) => b[1]-a[1]);
+  return ranked.length ? ranked[0][0].key : '';
+}
+function resolveSavedMetric(savedKey, savedRaw, wantValue) {
+  if (!parsed || !parsed.metricCols) return '';
+  if (savedKey && parsed.metricCols.some(m => m.key === savedKey)) return savedKey;
+  if (savedRaw) {
+    const hit = parsed.metricCols.find(m => m.rawName === savedRaw);
+    if (hit) return hit.key;
+  }
+  return pickConversionMetric(wantValue);
+}
+function metricRawName(key) {
+  const m = parsed && parsed.metricCols ? parsed.metricCols.find(x => x.key === key) : null;
+  return m ? m.rawName : '';
+}
+function ensureMetricIncluded(list, key) {
+  if (!key || !list) return;
+  const hit = list.find(m => m.key === key);
+  if (hit) hit.include = true;
+}
+function renderConversionSelectors() {
+  if (!parsed) return;
+  const opts = parsed.metricCols.map(m => `<option value="${esc(m.key)}">${esc((m.top || '') + (m.bottom || ''))}｜${esc(m.rawName || '')}</option>`).join('');
+  $('conversionMetricSelect').innerHTML = `<option value="">請選擇轉換次數欄位</option>${opts}`;
+  $('conversionValueMetricSelect').innerHTML = `<option value="">不計算 ROAS</option>${opts}`;
+  $('conversionMetricSelect').value = conversionMetricState || '';
+  $('conversionValueMetricSelect').value = conversionValueMetricState || '';
+}
+
 function renderParseResult() {
   const p = parsed;
   let html = `<div class="chips">
@@ -1115,8 +1197,12 @@ function getCpvBasis() {
 }
 function updateCpvBasisVisibility() {
   const mainType = (document.querySelector('input[name=rtype]:checked') || {}).value;
-  const show = isComposite() ? usedTypes().includes('CPV') : mainType === 'CPV';
+  const used = isComposite() ? usedTypes() : [];
+  const show = isComposite() ? used.includes('CPV') : mainType === 'CPV';
+  const showConv = isComposite() ? used.includes('CPA') : mainType === 'CPA';
   $('cpvBasisBox').style.display = show ? 'flex' : 'none';
+  $('conversionBasisBox').style.display = showConv ? 'flex' : 'none';
+  if (showConv) renderConversionSelectors();
 }
 function mappedCampaignType(campaign) {
   if (Object.prototype.hasOwnProperty.call(campaignTypeState, campaign))
@@ -1182,7 +1268,7 @@ function ensurePageInfo(pg) {
 }
 // 某類型缺少的必要欄位(成本分母 / 比率分子分母),回傳缺漏的中文標籤
 function missingForType(t) {
-  const tc = ReportGen.getTypeConfig(t, getCpvBasis());
+  const tc = ReportGen.getTypeConfig(t, getCpvBasis(), conversionMetricState, conversionValueMetricState);
   const avail = new Set(parsed.metricCols.map(m => m.key));
   const need = new Set([tc.cost.den, tc.ratio.num, tc.ratio.den]);
   const miss = [...need].filter(k => !avail.has(k));
@@ -1282,7 +1368,7 @@ function renderTypeInfos() {
   if (!pages.length) { $('typeInfoList').innerHTML = '<div style="color:var(--slate);font-size:13px">尚未辨識到可用的行銷活動類型</div>'; return; }
   $('typeInfoList').innerHTML = pages.map(({ page, type }) => {
     const info = ensurePageInfo(page);
-    const tc = ReportGen.getTypeConfig(type, getCpvBasis());
+    const tc = ReportGen.getTypeConfig(type, getCpvBasis(), conversionMetricState, conversionValueMetricState);
     const n = creativesForType(type).length;
     return `<div class="type-info-card">
       <h4><span class="badge">${esc(page)}</span>${type} 分頁 · ${n} 個素材</h4>
@@ -1313,6 +1399,22 @@ document.querySelectorAll('input[name=cpvBasis]').forEach(r => r.addEventListene
   if (isComposite()) renderTypeMetrics();
   refresh();
 }));
+$('conversionMetricSelect').addEventListener('change', e => {
+  conversionMetricState = e.target.value || '';
+  if (isComposite()) ensureMetricIncluded(typeMetricState.CPA, conversionMetricState);
+  else ensureMetricIncluded(metricState, conversionMetricState);
+  if (isComposite()) renderTypeMetrics(); else renderMetrics();
+  renderTypeInfos(); refresh();
+});
+$('conversionValueMetricSelect').addEventListener('change', e => {
+  conversionValueMetricState = e.target.value || '';
+  if (conversionValueMetricState) {
+    if (isComposite()) ensureMetricIncluded(typeMetricState.CPA, conversionValueMetricState);
+    else ensureMetricIncluded(metricState, conversionValueMetricState);
+  }
+  if (isComposite()) renderTypeMetrics(); else renderMetrics();
+  refresh();
+});
 
 function renderCreatives() {
   const comp = isComposite();
@@ -1463,6 +1565,8 @@ function currentConfig() {
     startDate: $('fStart').value, endDate: $('fEnd').value,
     creatives: creativeState,
     cpvBasis: getCpvBasis(),
+    conversionMetric: conversionMetricState,
+    conversionValueMetric: conversionValueMetricState,
     campaignTypeMap: { ...campaignTypeState },
     sections: { interest: $('secInterest').checked, gender: $('secGender').checked, age: $('secAge').checked },
   };
@@ -1502,7 +1606,7 @@ function refresh() {
   const cfg = currentConfig();
   const days = (cfg.startDate && cfg.endDate && cfg.endDate >= cfg.startDate) ? ReportGen.listDays(cfg.startDate, cfg.endDate).length : 0;
   if (!cfg.composite) {
-    const tc = ReportGen.getTypeConfig(cfg.type, cfg.cpvBasis);
+    const tc = ReportGen.getTypeConfig(cfg.type, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric);
     $('unitLabel').textContent = tc.unitLabel + ' 單價';
     renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length);
     const nCre = cfg.creatives.filter(c => c.include !== false).length;
@@ -1511,7 +1615,7 @@ function refresh() {
   } else {
     // 藍圖顯示目前頁籤類型的版型
     if (activeTab) {
-      const tc = ReportGen.getTypeConfig(activeTab, cfg.cpvBasis);
+      const tc = ReportGen.getTypeConfig(activeTab, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric);
       const mets = (typeMetricState[activeTab] || []).filter(m => m.include).map(m => m.key);
       const n = creativesForType(activeTab).length;
       renderBlueprintSingle(mets, tc, n, activeTab);
@@ -1553,21 +1657,26 @@ $('btnGen').addEventListener('click', async () => {
     if (!cfg.creatives.some(c => c.include !== false)) throw new Error('請至少保留一個素材');
     if (!cfg.composite) {
       if (!cfg.metrics.length) throw new Error('請至少勾選一個數據欄位');
+      if (cfg.type === 'CPA' && !cfg.conversionMetric) throw new Error('CPA 報表請先選擇「CPA 分母」轉換欄位');
     } else {
       const used = usedTypes();
       if (!used.length) throw new Error('複合模式:目前沒有可辨識的行銷活動類型');
       for (const t of used)
         if (!cfg.typeConfigs[t].metrics.length) throw new Error(`${t} 分頁尚未勾選任何數據欄位`);
+      if (used.includes('CPA') && !cfg.conversionMetric) throw new Error('CPA 分頁請先選擇「CPA 分母」轉換欄位');
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 1, savedAt: new Date().toISOString().slice(0, 10),
+      v: 3, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
       mainType: document.querySelector('input[name=rtype]:checked').value,
       single: { name: $('fName').value.trim(), budget: $('fBudget').value, unitPrice: $('fUnit').value },
       startDate: cfg.startDate, endDate: cfg.endDate,
       sections: cfg.sections,
       cpvBasis: cfg.cpvBasis,
+      conversionMetricState, conversionValueMetricState,
+      conversionMetricRaw: metricRawName(conversionMetricState),
+      conversionValueMetricRaw: metricRawName(conversionValueMetricState),
       campaignTypeState,
       metricState, typeMetricState, pageInfoState,
       creatives: creativeState,
