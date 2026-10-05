@@ -155,7 +155,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <header>
   <div class="wrap">
     <h1>廣告成效報表產生器</h1>
-    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / ROAS</span>
+    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA（ROAS 選配）</span>
   </div>
 </header>
 
@@ -195,7 +195,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           <label class="type-opt"><input type="radio" name="rtype" value="CPC"><span>CPC<small>費用 ÷ 點擊次數</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="LCPC"><span>LCPC<small>費用 ÷ 連結點擊</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="CPV"><span>CPV<small>3秒 / 15秒觀看可選</small></span></label>
-          <label class="type-opt"><input type="radio" name="rtype" value="CPA"><span>CPA / ROAS<small>轉換成本 + 投報率</small></span></label>
+          <label class="type-opt"><input type="radio" name="rtype" value="CPA"><span>CPA / 轉換<small>CPA 必備 · ROAS 選配</small></span></label>
         </div>
         <div class="cpv-basis" id="cpvBasisBox" style="display:none">
           <span class="basis-title">CPV 觀看口徑</span>
@@ -207,10 +207,10 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           <label style="display:flex;align-items:center;gap:6px">CPA 分母
             <select id="conversionMetricSelect" class="creative-type" aria-label="CPA 轉換欄位"></select>
           </label>
-          <label style="display:flex;align-items:center;gap:6px">ROAS 價值
+          <label style="display:flex;align-items:center;gap:6px">轉換價值（選配）
             <select id="conversionValueMetricSelect" class="creative-type" aria-label="ROAS 轉換價值欄位"></select>
           </label>
-          <span class="batch-note">可指定購買、名單、註冊或自訂轉換欄；ROAS = 轉換價值 ÷ 廣告費用</span>
+          <span class="batch-note">CPA 一定依「轉換次數」計算；有指定轉換價值時，才額外產出 ROAS</span>
         </div>
         <label class="composite-toggle"><input type="checkbox" id="compositeChk">
           <span><b>複合目標報表</b>：依行銷活動名稱自動辨識類型,各類型分別產出不同分頁</span></label>
@@ -974,7 +974,7 @@ function initFromParsed() {
   campaignTypeState = {};
   for (const c of parsed.campaigns || []) campaignTypeState[c] = ReportGen.detectTypeFromCampaign(c) || '';
   conversionMetricState = pickConversionMetric(false);
-  conversionValueMetricState = pickConversionMetric(true);
+  conversionValueMetricState = ''; // ROAS 為選配；建立新報表時不自動啟用
   for (const t of ALL_TYPES) {
     typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys)
       .map(k => ({ key: k, include: defaultMetricInclude(k) }));
@@ -1633,7 +1633,7 @@ function refresh() {
 
 function renderBlueprintSingle(metrics, tc, nCre, tabLabel) {
   const sel = metrics.map(k => parsed.metricCols.find(m => m.key === k)).filter(Boolean);
-  const hasRatio = metrics.includes(tc.ratio.num) && metrics.includes(tc.ratio.den);
+  const hasRatio = !!tc.ratio.num && metrics.includes(tc.ratio.num) && (tc.ratio.den === '__fee' || metrics.includes(tc.ratio.den));
   const hasCost = parsed.hasSpend && metrics.includes(tc.cost.den);
   const group = () => sel.map(m => `<span class="bp">${esc(m.top)}${esc(m.bottom)}</span>`).join('') +
     `<span class="bp fee">廣告費用</span>` +
@@ -1667,7 +1667,7 @@ $('btnGen').addEventListener('click', async () => {
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 3, savedAt: new Date().toISOString().slice(0, 10),
+      v: 4, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
       mainType: document.querySelector('input[name=rtype]:checked').value,
       single: { name: $('fName').value.trim(), budget: $('fBudget').value, unitPrice: $('fUnit').value },
