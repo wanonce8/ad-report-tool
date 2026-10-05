@@ -106,9 +106,18 @@ legend{font-size:13px;font-weight:700;color:var(--slate);margin-bottom:8px}
 .campaign-map-row:last-child{border-bottom:none}
 .campaign-map-row .campaign-name{font-size:12.5px;overflow-wrap:anywhere}
 .campaign-map-row select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;font-family:inherit;font-size:13px}
+.campaign-budget-row{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.campaign-budget-row:last-child{border-bottom:none}
+.campaign-budget-row .campaign-name{font-size:12.5px;overflow-wrap:anywhere}
+.campaign-budget-row input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;font-family:inherit;font-size:13px}
 .creative-types{display:flex;gap:4px;flex-wrap:wrap;max-width:260px}
 .creative-types .chip{margin:0;padding:2px 7px;font-size:11px}
 .check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+.advanced-box{margin-top:16px;border:1px solid var(--line);border-radius:8px;background:#FAFBFC;overflow:hidden}
+.advanced-box summary{cursor:pointer;padding:11px 14px;font-weight:700;font-size:13.5px;user-select:none}
+.advanced-box[open] summary{border-bottom:1px solid var(--line)}
+.advanced-body{padding:14px}
+.advanced-note{font-size:12.5px;color:var(--slate);margin-top:8px}
 .ck{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px;background:#FAFBFC}
 .ck input{accent-color:var(--ink);width:15px;height:15px}
 .ck .raw{color:var(--slate);font-size:11.5px;margin-left:auto}
@@ -240,6 +249,14 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         <div id="typeInfoList"></div>
       </fieldset>
 
+      <fieldset id="campaignBudgetBox">
+        <legend>各廣告活動共用預算</legend>
+        <div class="warn" style="margin-top:0;margin-bottom:10px">
+          預算以「行銷活動」為單位手動設定；同一 Campaign 底下的多支廣告會共用同一筆預算。Excel 會在每支廣告上方顯示「廣告名稱／日期／預算」。
+        </div>
+        <div id="campaignBudgetList"></div>
+      </fieldset>
+
       <fieldset id="campaignMapBox" style="display:none">
         <legend>行銷活動自動辨識（可手動修正）</legend>
         <div class="warn" style="margin-top:0;margin-bottom:10px">
@@ -279,9 +296,31 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         <div class="check-grid">
           <label class="ck"><input type="checkbox" id="secGender" checked>性別</label>
           <label class="ck"><input type="checkbox" id="secAge" checked>年齡</label>
+          <label class="ck"><input type="checkbox" id="secGenderAge">性別 × 年齡</label>
           <label class="ck"><input type="checkbox" id="secInterest" checked>興趣群組(廣告組合)</label>
         </div>
       </fieldset>
+
+      <details class="advanced-box" id="advancedBreakdownBox">
+        <summary>進階：By 素材交叉分析（少數案件選用）</summary>
+        <div class="advanced-body">
+          <div class="field" style="margin-bottom:12px">
+            <label>額外 Breakdown Raw Data（選填，可多檔）</label>
+            <input type="file" id="extraBreakdownInput" accept=".xlsx,.xls" multiple>
+            <div class="advanced-note">地區、裝置、版位若無法與主 Raw Data 同時匯出，可另外上傳；若同一份額外檔同時含裝置＋版位，只需上傳一次。</div>
+            <div id="extraBreakdownStatus"></div>
+          </div>
+          <div class="check-grid">
+            <label class="ck"><input type="checkbox" id="byCreGender">By 素材 × 性別</label>
+            <label class="ck"><input type="checkbox" id="byCreAge">By 素材 × 年齡</label>
+            <label class="ck"><input type="checkbox" id="byCreGenderAge">By 素材 × 性別 × 年齡</label>
+            <label class="ck"><input type="checkbox" id="byCreInterest">By 素材 × 興趣群組</label>
+            <label class="ck"><input type="checkbox" id="byCreRegion">By 素材 × 地區</label>
+            <label class="ck"><input type="checkbox" id="byCreDevice">By 素材 × 裝置</label>
+            <label class="ck"><input type="checkbox" id="byCrePlacement">By 素材 × 版位</label>
+          </div>
+        </div>
+      </details>
 
       <div class="blueprint">
         <h3>報表欄位藍圖</h3>
@@ -333,9 +372,12 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   { key: 'video100',    top: '影片觀看', bottom: '100%', match: n => /(影片|觀看|播放)/.test(n) && /100\s*%/.test(n) },
 ];
 
-  const SPEND_MATCH = n => n.includes('花費含服務費');
-  const IGNORED_COLS = n => n.includes('已花費');
-  const DIM_COLS = ['開始日期', '結束日期', '年齡', '性別', '廣告組合', '歸因期間', '行銷活動', '廣告'];
+  // 費用欄位優先順序：內含服務費案件優先抓「花費含服務費」；若不存在，再抓 Meta 原生「已花費（TWD）」/「已花費」
+  const SPEND_SERVICE_MATCH = n => /花費含服務費/.test(n);
+  const SPEND_BASE_MATCH = n => /已花費/.test(n) || /amount\s*spent/i.test(n);
+  const SPEND_MATCH = n => SPEND_SERVICE_MATCH(n) || SPEND_BASE_MATCH(n);
+  const IGNORED_COLS = n => SPEND_MATCH(n);
+  const DIM_COLS = ['開始日期', '結束日期', '年齡', '性別', '廣告組合', '歸因期間', '行銷活動', '廣告', '地區', '區域', '縣市', '裝置平台', '裝置', '裝置類型', '版位', '刊登版位', '廣告版位'];
 
   const TYPE_CONFIG = {
     CPM: {
@@ -442,8 +484,15 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       if (k == null) k = keys.find(h => h.includes(name) && !DIM_COLS.some(d => d !== name && h === d));
       return k == null ? -1 : idx[k];
     };
+    const colAny = names => {
+      for (const name of names) { const c = col(name); if (c >= 0) return c; }
+      return -1;
+    };
     const cDate = col('開始日期'), cAge = col('年齡'), cGender = col('性別'),
-          cAdset = col('廣告組合'), cCampaign = col('行銷活動'), cAd = col('廣告');
+          cAdset = col('廣告組合'), cCampaign = col('行銷活動'), cAd = col('廣告'),
+          cRegion = colAny(['地區','區域','縣市']),
+          cDevice = colAny(['裝置平台','裝置類型','裝置']),
+          cPlacement = colAny(['刊登版位','廣告版位','版位']);
 
     const metricCols = [];
     const used = new Set();
@@ -451,7 +500,11 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       const hit = headers.findIndex((h, i) => h && !used.has(i) && def.match(h));
       if (hit >= 0) { used.add(hit); metricCols.push({ ...def, colIdx: hit, rawName: headers[hit], known: true }); }
     }
-    let spendCol = headers.findIndex(h => h && SPEND_MATCH(h));
+    // 同時存在兩種費用欄時，固定優先使用「花費含服務費」；沒有才 fallback 到「已花費（TWD）」/「已花費」
+    let spendCol = headers.findIndex(h => h && SPEND_SERVICE_MATCH(h));
+    if (spendCol < 0) spendCol = headers.findIndex(h => h && SPEND_BASE_MATCH(h));
+    const spendRawName = spendCol >= 0 ? headers[spendCol] : '';
+    const spendSource = spendCol < 0 ? 'none' : (SPEND_SERVICE_MATCH(spendRawName) ? 'service_included' : 'meta_spend');
     headers.forEach((h, i) => {
       if (!h || used.has(i) || i === spendCol) return;
       if (DIM_COLS.some(d => h.includes(d)) || IGNORED_COLS(h) || SPEND_MATCH(h)) return;
@@ -470,6 +523,9 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         date: dateKey(d),
         age: str(r[cAge]), gender: str(r[cGender]),
         adset: str(r[cAdset]),
+        region: str(cRegion >= 0 ? r[cRegion] : ''),
+        device: str(cDevice >= 0 ? r[cDevice] : ''),
+        placement: str(cPlacement >= 0 ? r[cPlacement] : ''),
         campaign: str(cCampaign >= 0 ? r[cCampaign] : ''),
         ad: str(r[cAd]),
         spend: num(spendCol >= 0 ? r[spendCol] : 0),
@@ -481,12 +537,15 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     }
     const uniq = a => [...new Set(a.filter(Boolean))];
     return {
-      records, metricCols, hasSpend: spendCol >= 0, skippedRows: skipped,
+      records, metricCols, hasSpend: spendCol >= 0, spendRawName, spendSource, skippedRows: skipped,
       ads: uniq(records.map(r => r.ad)),
       campaigns: uniq(records.map(r => r.campaign)),
       adsets: uniq(records.map(r => r.adset)),
       genders: uniq(records.map(r => r.gender)).sort(),
       ages: uniq(records.map(r => r.age)).sort(),
+      regions: uniq(records.map(r => r.region)).sort(),
+      devices: uniq(records.map(r => r.device)).sort(),
+      placements: uniq(records.map(r => r.placement)).sort(),
       dateMin: records.length ? records.map(r => r.date).sort()[0] : null,
       dateMax: records.length ? records.map(r => r.date).sort().slice(-1)[0] : null,
     };
@@ -510,7 +569,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 
   /* ---------- 彙總 ---------- */
   function aggregate(records, start, end, adWhitelist, campaignType, campaignTypeMap) {
-    const byAdDate = new Map(), byAdset = new Map(), byGender = new Map(), byAge = new Map();
+    const byAdDate = new Map(), byAdset = new Map(), byGender = new Map(), byAge = new Map(), byGenderAge = new Map();
     const allow = adWhitelist ? new Set(adWhitelist) : null; // null = 全部素材
     const mappedType = rec => {
       if (campaignTypeMap && Object.prototype.hasOwnProperty.call(campaignTypeMap, rec.campaign))
@@ -537,8 +596,53 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       add(byAdset, rec.adset, rec);
       add(byGender, rec.gender, rec);
       add(byAge, rec.age, rec);
+      const g = str(rec.gender) || '未知', a = str(rec.age) || '未知';
+      if (!byGenderAge.has(g)) byGenderAge.set(g, new Map());
+      add(byGenderAge.get(g), a, rec);
     }
-    return { byAdDate, byAdset, byGender, byAge };
+    return { byAdDate, byAdset, byGender, byAge, byGenderAge };
+  }
+
+  function aggregateByAdDimension(records, start, end, adWhitelist, campaignType, campaignTypeMap, dimension) {
+    const out = new Map();
+    const allow = adWhitelist ? new Set(adWhitelist) : null;
+    const mappedType = rec => {
+      if (campaignTypeMap && Object.prototype.hasOwnProperty.call(campaignTypeMap, rec.campaign))
+        return campaignTypeMap[rec.campaign] || null;
+      return rec.campaignType || detectTypeFromCampaign(rec.campaign);
+    };
+    const field = dimension === 'interest' ? 'adset' : dimension;
+    for (const rec of records || []) {
+      if (rec.date < start) continue;
+      if (campaignType && mappedType(rec) !== campaignType) continue;
+      const adKey = rec.ad || '未命名素材';
+      if (allow && !allow.has(adKey)) continue;
+      const gk = str(rec[field]) || '未知';
+      if (!out.has(adKey)) out.set(adKey, new Map());
+      const m = out.get(adKey);
+      if (!m.has(gk)) m.set(gk, { spend: 0, values: {} });
+      const t = m.get(gk);
+      t.spend += rec.spend;
+      for (const k in rec.values) t.values[k] = (t.values[k] || 0) + rec.values[k];
+    }
+    return out;
+  }
+
+
+  function aggregateByAdGenderAge(records, start, end, adWhitelist, campaignType, campaignTypeMap) {
+    const out = new Map(), allow = adWhitelist ? new Set(adWhitelist) : null;
+    const mappedType = rec => campaignTypeMap && Object.prototype.hasOwnProperty.call(campaignTypeMap, rec.campaign) ? (campaignTypeMap[rec.campaign] || null) : (rec.campaignType || detectTypeFromCampaign(rec.campaign));
+    for (const rec of records || []) {
+      if (rec.date < start) continue;
+      if (campaignType && mappedType(rec) !== campaignType) continue;
+      const ad = rec.ad || '未命名素材'; if (allow && !allow.has(ad)) continue;
+      const g = str(rec.gender) || '未知', a = str(rec.age) || '未知';
+      if (!out.has(ad)) out.set(ad, new Map());
+      const gm = out.get(ad); if (!gm.has(g)) gm.set(g, new Map());
+      const am = gm.get(g); if (!am.has(a)) am.set(a, { spend:0, values:{} });
+      const t = am.get(a); t.spend += rec.spend; for (const k in rec.values) t.values[k] = (t.values[k] || 0) + rec.values[k];
+    }
+    return out;
   }
 
   /* ---------- 樣式(比照報表參考) ---------- */
@@ -608,8 +712,13 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const groupKeys = [...selKeys, '__fee', ...(hasCost ? ['__cost'] : []), ...(hasRatio ? ['__ratio'] : [])];
     const groupW = groupKeys.length;
     const dStart = 2;
-    const blocks = creatives.map((_, i) => dStart + groupW * (i + 1));
-    const lastCol = dStart + groupW * (creatives.length + 1) - 1;
+    // 素材區塊緊密橫向排列，不在每支素材前額外插空白欄。
+    // By 素材交叉分析只共用一個分類欄，且每支素材的「廣告呈現次數」
+    // 直接與上方每日總表同素材的「廣告呈現次數」落在完全相同欄位。
+    const creativeGap = 0;
+    const firstCreativeStart = dStart + groupW;
+    const blocks = creatives.map((_, i) => firstCreativeStart + i * groupW);
+    const lastCol = blocks.length ? blocks[blocks.length - 1] + groupW - 1 : dStart + groupW - 1;
     const gCol = (start, key) => start + groupKeys.indexOf(key);
     const boundaries = new Set([1, dStart, ...blocks]); // 左 medium 框線位置
     const vSide = c => [boundaries.has(c) ? 'medium' : 'thin', c === lastCol ? 'medium' : 'thin'];
@@ -631,11 +740,51 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       ws.mergeCells(r, 2, r, 4);
     });
 
-    /* --- 區塊標題(第 8 列,16pt 無底色) --- */
+    /* --- 各廣告資訊：廣告名稱 / 實際日期 / Campaign 共用預算 --- */
+    const mappedTypeForInfo = rec => {
+      if (config.campaignTypeMap && Object.prototype.hasOwnProperty.call(config.campaignTypeMap, rec.campaign))
+        return config.campaignTypeMap[rec.campaign] || null;
+      return rec.campaignType || detectTypeFromCampaign(rec.campaign);
+    };
+    const adInfo = creatives.map(cre => {
+      const rows = parsed.records.filter(rec =>
+        (rec.ad || '未命名素材') === cre.raw &&
+        rec.date >= config.startDate && rec.date <= config.endDate &&
+        (!config.campaignType || mappedTypeForInfo(rec) === config.campaignType)
+      );
+      const dates = rows.map(r => r.date).filter(Boolean).sort();
+      const campaigns = [...new Set(rows.map(r => r.campaign).filter(Boolean))];
+      let budget = campaigns.reduce((sum, c) => sum + num((config.campaignBudgets || {})[c]), 0);
+      // 向下相容／避免單一 Campaign 重複填預算：
+      // 若目前分頁實際只有一個 Campaign，且沒有另填 Campaign 預算，沿用原本基本資訊的預算。
+      const pageCampaigns = [...new Set(parsed.records.filter(rec =>
+        rec.date >= config.startDate && rec.date <= config.endDate &&
+        (!config.campaignType || mappedTypeForInfo(rec) === config.campaignType)
+      ).map(r => r.campaign).filter(Boolean))];
+      if (!budget && campaigns.length === 1 && pageCampaigns.length === 1) budget = num(config.budget);
+      const fmtShort = k => k ? `${+k.slice(5,7)}/${+k.slice(8)}` : '';
+      return {
+        name: cre.label || cre.raw || '',
+        dateText: dates.length ? `${fmtShort(dates[0])}-${fmtShort(dates[dates.length - 1])}` : '',
+        budget,
+        campaigns,
+      };
+    });
     set(8, 1, { value: '每日總表', font: { size: 16 } });
     blocks.forEach((bStart, i) => {
-      const label = creatives[i].label || creatives[i].raw || `素材${i + 1}`;
-      set(8, bStart, { value: label, font: { size: 16 } });
+      const info = adInfo[i];
+      const blockEnd = bStart + groupW - 1;
+      const reserveForImage = Math.min(3, Math.max(0, groupW - 1));
+      const textEnd = Math.max(bStart, blockEnd - reserveForImage);
+      const infoRows = [
+        [6, info.name, undefined],
+        [7, info.dateText, undefined],
+        [8, info.budget || '', info.budget ? '"$"#,##0' : undefined],
+      ];
+      infoRows.forEach(([r, value, numFmt]) => {
+        set(r, bStart, { value, numFmt, font: { size: 11 }, h: 'left' });
+        if (textEnd > bStart) ws.mergeCells(r, bStart, r, textEnd);
+      });
     });
 
     /* --- 表頭(第 9-10 列) --- */
@@ -711,15 +860,86 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     });
     totGroup(dStart);
     blocks.forEach(b => totGroup(b));
+    // 黃色摘要列只延伸到左側「每日總表本體」最後一欄，不進入右側素材區塊。
+    const summaryLastCol = dStart + groupW - 1;
+    for (let c = 1; c <= summaryLastCol; c++) {
+      const l = c === 1 ? 'medium' : 'thin';
+      const rr = c === summaryLastCol ? 'medium' : 'thin';
+      set(rTot + 1, c, { fill: fill(YELLOW), border: bd('medium', null, l, rr) });
+      set(rTot + 2, c, { fill: fill(YELLOW), border: bd('thin', 'medium', l, rr) });
+    }
     set(rTot + 1, 1, { value: '總預算', font: { bold: true }, fill: fill(YELLOW), border: bd('medium', null, 'medium', 'thin') });
-    set(rTot + 1, 2, { formula: 'B3', numFmt: FMT.fee, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('medium', null, 'thin', 'medium'), h: 'center' });
+    set(rTot + 1, summaryLastCol, { formula: 'B3', numFmt: FMT.fee, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('medium', null, summaryLastCol === 1 ? 'medium' : 'thin', 'medium'), h: 'center' });
     set(rTot + 2, 1, { value: '總執行率', font: { bold: true }, fill: fill(YELLOW), border: bd('thin', 'medium', 'medium', 'thin') });
-    set(rTot + 2, 2, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/B${rTot + 1}`), numFmt: tc.ratio.numFmt || FMT.ratio, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('thin', 'medium', 'thin', 'medium'), h: 'center' });
+    set(rTot + 2, summaryLastCol, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/${colLetter(summaryLastCol)}${rTot + 1}`), numFmt: tc.ratio.numFmt || FMT.ratio, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('thin', 'medium', summaryLastCol === 1 ? 'medium' : 'thin', 'medium'), h: 'center' });
 
     /* --- 興趣群組 / 性別 / 年齡(欄位鏡射每日總表) --- */
-    let rs = rTot + 4;
+    // 各資料區塊之間固定保留 2 個空白列（原本 1 列）。
+    let rs = rTot + 5;
     const audLast = dStart + groupW - 1;
     const audSide = c => [c === 1 || c === dStart ? 'medium' : 'thin', c === audLast ? 'medium' : 'thin'];
+
+    /* --- 性別 × 年齡（每日總表下方） --- */
+    if (config.sections.genderAge && agg.byGenderAge && agg.byGenderAge.size) {
+      const genderOrder = ['女性','男性','unknown','未知'];
+      const ageOrder = ['18-24','25-34','35-44','45-54','55-64','65+','unknown','未知'];
+      const sortFixed = (vals, fixed) => [...vals].sort((a,b) => {
+        const ia=fixed.indexOf(a), ib=fixed.indexOf(b), ra=ia>=0?ia:9999, rb=ib>=0?ib:9999;
+        return ra!==rb ? ra-rb : String(a).localeCompare(String(b),'zh-Hant',{numeric:true});
+      });
+      const genders = sortFixed(agg.byGenderAge.keys(), genderOrder);
+      const gaStart = 3;
+      const gaCell = key => colLetter(gaStart + groupKeys.indexOf(key));
+      set(rs,1,{value:'性別',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','medium','thin'),h:'center'});
+      set(rs+1,1,{fill:fill(DKBLUE),border:bd('thin','thin','medium','thin')}); ws.mergeCells(rs,1,rs+1,1);
+      set(rs,2,{value:'年齡',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','thin','thin'),h:'center'});
+      set(rs+1,2,{fill:fill(DKBLUE),border:bd('thin','thin','thin','thin')}); ws.mergeCells(rs,2,rs+1,2);
+      groupKeys.forEach((k,j)=>{
+        const c=gaStart+j,[top,bottom]=headText(k),style={font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE)};
+        set(rs,c,{value:top,...style,border:bd('medium','thin',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin'),h:'center'});
+        set(rs+1,c,{value:bottom||undefined,...style,border:bd('thin','thin',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin'),h:'center'});
+        if(!bottom) ws.mergeCells(rs,c,rs+1,c);
+      });
+      let r=rs+2; const detailRows=[];
+      for(const gender of genders){
+        const amap=agg.byGenderAge.get(gender)||new Map(), ages=sortFixed(amap.keys(),ageOrder); if(!ages.length) continue;
+        const gStart=r;
+        for(const age of ages){
+          detailRows.push(r);
+          const d=amap.get(age)||{spend:0,values:{}};
+          const rowZero=Math.abs(Number(d.spend)||0)<1e-12 && groupKeys.filter(k=>!['__ratio','__cost','__fee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);
+          set(r,2,{value:age,fill:rowZero?fill(GREY):undefined,border:bd('thin','thin','thin','thin')});
+          groupKeys.forEach((k,j)=>{
+            const c=gaStart+j,common={border:bd('thin','thin',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin'),fill:rowZero?fill(GREY):undefined};
+            if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...common});
+            else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...common});
+            else if(k==='__fee') set(r,c,{value:Math.round(d.spend*100)/100,numFmt:FMT.fee,...common});
+            else set(r,c,{value:d.values[k]||0,numFmt:FMT.metric,...common});
+          }); r++;
+        }
+        const gEnd=r-1;
+        set(gStart,1,{value:gender,border:bd('thin','thin','medium','thin'),h:'center'});
+        if(gEnd>gStart){ ws.mergeCells(gStart,1,gEnd,1); set(gStart,1,{value:gender,border:bd('thin','thin','medium','thin'),h:'center'}); }
+        set(r,1,{value:`${gender}總計`,font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,1,r,2);
+        groupKeys.forEach((k,j)=>{
+          const c=gaStart+j,style={font:{color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin')};
+          if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});
+          else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});
+          else if(k==='reach') set(r,c,{value:null,numFmt:FMT.metric,...style});
+          else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:k==='__fee'?FMT.fee:FMT.metric,...style});
+        }); r++;
+      }
+      set(r,1,{value:'總計',font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,1,r,2);
+      groupKeys.forEach((k,j)=>{
+        const c=gaStart+j,style={font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin')};
+        if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});
+        else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});
+        else if(k==='reach') set(r,c,{value:null,numFmt:FMT.metric,...style});
+        else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:k==='__fee'?FMT.fee:FMT.metric,...style});
+      });
+      rs=r+3;
+    }
+
 const sectionDefs = [
   ['gender',   '性別',     agg.byGender, null],
   ['age',      '年齡',     agg.byAge,    null],
@@ -768,7 +988,155 @@ const sectionDefs = [
         else if (k === 'reach') set(r, c, { value: null, numFmt: FMT.metric, ...style });
         else set(r, c, { formula: `SUM(${colLetter(c)}${rs + 2}:${colLetter(c)}${r - 1})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
       });
-      rs = r + 2;
+      rs = r + 3;
+    }
+
+    /* --- 進階：By 素材 × Breakdown 交叉分析 ---
+       範本對齊原則：
+       1) 左側只保留一組 Breakdown 分類欄（年齡／性別／興趣／地區…）。
+       2) 所有素材橫向並排，欄位寬度與每日總表完全一致。
+       3) 每支素材的第一個指標「廣告呈現次數」直接對齊上方同素材的「廣告呈現次數」。
+       4) 同一 Breakdown 的分類列採所有素材的聯集，讓各素材數據保持同一列。 */
+
+    /* --- 進階：By 素材 × 性別 × 年齡 --- */
+    if (config.byCreativeSections && config.byCreativeSections.genderAge && blocks.length) {
+      const genderOrder=['女性','男性','unknown','未知'], ageOrder=['18-24','25-34','35-44','45-54','55-64','65+','unknown','未知'];
+      const sortFixed=(vals,fixed)=>[...vals].sort((a,b)=>{const ia=fixed.indexOf(a),ib=fixed.indexOf(b),ra=ia>=0?ia:9999,rb=ib>=0?ib:9999;return ra!==rb?ra-rb:String(a).localeCompare(String(b),'zh-Hant',{numeric:true});});
+      const byAdGA=aggregateByAdGenderAge(parsed.records,config.startDate,config.endDate,adWhitelist,config.campaignType,config.campaignTypeMap);
+      const gaMaps=creatives.map(c=>byAdGA.get(c.raw)||new Map()), genderSet=new Set(); gaMaps.forEach(gm=>gm.forEach((_,g)=>genderSet.add(g)));
+      const genders=sortFixed(genderSet,genderOrder);
+      if(genders.length){
+        const hr=rs, genderCol=blocks[0]-2, ageCol=blocks[0]-1;
+        set(hr,genderCol,{value:'性別',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','medium','thin'),h:'center'}); set(hr+1,genderCol,{fill:fill(DKBLUE),border:bd('thin','thin','medium','thin')}); ws.mergeCells(hr,genderCol,hr+1,genderCol);
+        set(hr,ageCol,{value:'年齡',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','thin','thin'),h:'center'}); set(hr+1,ageCol,{fill:fill(DKBLUE),border:bd('thin','thin','thin','thin')}); ws.mergeCells(hr,ageCol,hr+1,ageCol);
+        creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,[top,bottom]=headText(k),style={font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE)};set(hr,c,{value:top,...style,border:bd('medium','thin',j===0?'medium':'thin',c===en?'medium':'thin'),h:'center'});set(hr+1,c,{value:bottom||undefined,...style,border:bd('thin','thin',j===0?'medium':'thin',c===en?'medium':'thin'),h:'center'});if(!bottom)ws.mergeCells(hr,c,hr+1,c);});});
+        let r=hr+2; const detailRows=[];
+        for(const gender of genders){
+          const ageSet=new Set(); gaMaps.forEach(gm=>{const am=gm.get(gender);if(am)am.forEach((_,a)=>ageSet.add(a));}); const ages=sortFixed(ageSet,ageOrder); if(!ages.length) continue; const gStart=r;
+          for(const age of ages){
+            detailRows.push(r);
+            const zeros=creatives.map((_,ci)=>{const d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}};return Math.abs(Number(d.spend)||0)<1e-12&&groupKeys.filter(k=>!['__ratio','__cost','__fee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);});
+            set(r,ageCol,{value:age,fill:zeros.every(Boolean)?fill(GREY):undefined,border:bd('thin','thin','thin','thin')});
+            creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1,d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}},zf=zeros[ci]?fill(GREY):undefined;groupKeys.forEach((k,j)=>{const c=st+j,common={border:bd('thin','thin',j===0?'medium':'thin',c===en?'medium':'thin'),fill:zf};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...common});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...common});else if(k==='__fee')set(r,c,{value:Math.round((d.spend||0)*100)/100,numFmt:FMT.fee,...common});else set(r,c,{value:(d.values&&d.values[k])||0,numFmt:FMT.metric,...common});});}); r++;
+          }
+          const gEnd=r-1; set(gStart,genderCol,{value:gender,border:bd('thin','thin','medium','thin'),h:'center'}); if(gEnd>gStart){ws.mergeCells(gStart,genderCol,gEnd,genderCol);set(gStart,genderCol,{value:gender,border:bd('thin','thin','medium','thin'),h:'center'});}
+          set(r,genderCol,{value:`${gender}總計`,font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,genderCol,r,ageCol);
+          creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:k==='__fee'?FMT.fee:FMT.metric,...style});});}); r++;
+        }
+        set(r,genderCol,{value:'總計',font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,genderCol,r,ageCol);
+        creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:k==='__fee'?FMT.fee:FMT.metric,...style});});}); rs=r+3;
+      }
+    }
+
+    const byCreDefs = [
+      ['gender', '性別'], ['age', '年齡'], ['interest', '受眾'],
+      ['region', '地區'], ['device', '裝置'], ['placement', '版位'],
+    ];
+    const extraRecords = config.extraBreakdownRecords || [];
+    const byDimOrder = {
+      gender: ['女性','男性','unknown','未知'],
+      age: ['18-24','25-34','35-44','45-54','55-64','65+','unknown','未知'],
+    };
+    const sortDimKeys = (dim, keys) => {
+      const fixed = byDimOrder[dim] || [];
+      const rank = new Map(fixed.map((v,i)=>[v,i]));
+      return [...keys].sort((a,b) => {
+        const ra = rank.has(a) ? rank.get(a) : 9999;
+        const rb = rank.has(b) ? rank.get(b) : 9999;
+        if (ra !== rb) return ra-rb;
+        return String(a).localeCompare(String(b), 'zh-Hant', { numeric:true });
+      });
+    };
+
+    for (const [dim, title] of byCreDefs) {
+      if (!config.byCreativeSections || !config.byCreativeSections[dim]) continue;
+      const sourceRecords = ['region','device','placement'].includes(dim) ? extraRecords : parsed.records;
+      if (!sourceRecords.length || !blocks.length) continue;
+      const byAd = aggregateByAdDimension(sourceRecords, config.startDate, config.endDate, adWhitelist, config.campaignType, config.campaignTypeMap, dim);
+      const maps = creatives.map(c => byAd.get(c.raw) || new Map());
+      const allKeysSet = new Set();
+      maps.forEach(m => m.forEach((_, k) => allKeysSet.add(k)));
+      if (!allKeysSet.size) continue;
+      const dimKeys = sortDimKeys(dim, allKeysSet);
+
+      // 不顯示額外的「素材交叉分析」或素材名稱橫幅；素材位置已與上方每日總表精準對齊。
+      const hr = rs;
+      const labelCol = blocks[0] - 1; // 只共用這一欄作 Breakdown 分類欄
+
+      // 左側只出現一次 Breakdown 名稱
+      set(hr, labelCol, { value: title, font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'thin', 'medium', 'thin'), h: 'center' });
+      set(hr + 1, labelCol, { fill: fill(DKBLUE), border: bd('thin', 'thin', 'medium', 'thin') });
+      ws.mergeCells(hr, labelCol, hr + 1, labelCol);
+
+      // 每支素材的欄位表頭與上方每日總表一模一樣，且「廣告呈現次數」同欄對齊
+      creatives.forEach((_, ci) => {
+        const metricStart = blocks[ci];
+        const metricEnd = metricStart + groupW - 1;
+        groupKeys.forEach((k, j) => {
+          const c = metricStart + j;
+          const [top, bottom] = headText(k);
+          const style = { font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE) };
+          set(hr, c, { value: top, ...style, border: bd('medium', 'thin', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin'), h: 'center' });
+          set(hr + 1, c, { value: bottom || undefined, ...style, border: bd('thin', 'thin', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin'), h: 'center' });
+          if (!bottom) ws.mergeCells(hr, c, hr + 1, c);
+        });
+      });
+
+      // 所有素材共用同一組分類列；某素材沒有該分類時填 0。
+      // 若某支素材在該分類的「整段原始數據＋花費」皆為 0，該素材區段整段反灰；
+      // 比率／成本公式即使顯示 0.00 或 0.00% 也視為 0，不影響判定。
+      let r = hr + 2;
+      for (const gk of dimKeys) {
+        const segmentZeroFlags = creatives.map((_, ci) => {
+          const d = maps[ci].get(gk) || { spend: 0, values: {} };
+          const spendZero = Math.abs(Number(d.spend) || 0) < 1e-12;
+          const valuesZero = groupKeys
+            .filter(k => !['__ratio', '__cost', '__fee'].includes(k))
+            .every(k => Math.abs(Number((d.values && d.values[k]) || 0)) < 1e-12);
+          return spendZero && valuesZero;
+        });
+        const wholeRowZero = segmentZeroFlags.every(Boolean);
+        set(r, labelCol, {
+          value: gk,
+          fill: wholeRowZero ? fill(GREY) : undefined,
+          border: bd('thin', 'thin', 'medium', 'thin')
+        });
+        creatives.forEach((_, ci) => {
+          const metricStart = blocks[ci];
+          const metricEnd = metricStart + groupW - 1;
+          const d = maps[ci].get(gk) || { spend: 0, values: {} };
+          const zeroFill = segmentZeroFlags[ci] ? fill(GREY) : undefined;
+          groupKeys.forEach((k, j) => {
+            const c = metricStart + j;
+            const border = bd('thin', 'thin', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin');
+            const common = { border, fill: zeroFill };
+            if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, metricStart)}${r}/${cellFor(tc.ratio.den, metricStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...common });
+            else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', metricStart)}${r}/${cellFor(tc.cost.den, metricStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...common });
+            else if (k === '__fee') set(r, c, { value: Math.round((d.spend || 0) * 100) / 100, numFmt: FMT.fee, ...common });
+            else set(r, c, { value: (d.values && d.values[k]) || 0, numFmt: FMT.metric, ...common });
+          });
+        });
+        r++;
+      }
+
+      // 單一「總計」列橫跨所有素材；Reach 仍為 non-additive，不直接 SUM
+      set(r, labelCol, { value: '總計', font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', 'medium', 'thin') });
+      creatives.forEach((_, ci) => {
+        const metricStart = blocks[ci];
+        const metricEnd = metricStart + groupW - 1;
+        groupKeys.forEach((k, j) => {
+          const c = metricStart + j;
+          const style = {
+            font: { color: { argb: WHITE } }, fill: fill(DKBLUE),
+            border: bd('medium', 'medium', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin')
+          };
+          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, metricStart)}${r}/${cellFor(tc.ratio.den, metricStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...style });
+          else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', metricStart)}${r}/${cellFor(tc.cost.den, metricStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
+          else if (k === 'reach') set(r, c, { value: null, numFmt: FMT.metric, ...style });
+          else set(r, c, { formula: `SUM(${colLetter(c)}${hr + 2}:${colLetter(c)}${r - 1})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
+        });
+      });
+      rs = r + 3;
     }
 
     /* --- 欄寬(依內容自動調整)與列高 --- */
@@ -799,6 +1167,8 @@ const sectionDefs = [
     ws.getColumn(1).width = Math.max(20.2, Math.min(36, (colMax[1] || 0) + 2));
     for (let cc = 2; cc <= lastCol; cc++)
       ws.getColumn(cc).width = Math.max(10.5, Math.min(30, (colMax[cc] || 0) + 1.5));
+    // By 素材交叉分析只共用第一支素材左側的一個分類欄；不再替每支素材插入分隔欄。
+    if (blocks.length) ws.getColumn(blocks[0] - 1).width = Math.max(ws.getColumn(blocks[0] - 1).width || 10.5, 12);
     const lastRow = rs;
     for (let rr = 1; rr <= lastRow; rr++) ws.getRow(rr).height = rr === 8 ? 24 : 18;
 
@@ -876,6 +1246,7 @@ const sectionDefs = [
           conversionValueMetric: config.conversionValueMetric || 'conversionValue',
           campaignType: t,
           campaignTypeMap,
+          campaignBudgets: config.campaignBudgets || {},
           composite: false,
           name: pageCfg.name != null ? pageCfg.name : config.name,
           budget: pageCfg.budget != null ? pageCfg.budget : config.budget,
@@ -885,6 +1256,8 @@ const sectionDefs = [
           metrics: (typeCfg.metrics && typeCfg.metrics.length) ? typeCfg.metrics : config.metrics,
           creatives: sheetCreatives,
           sections: config.sections,
+          byCreativeSections: config.byCreativeSections,
+          extraBreakdownRecords: config.extraBreakdownRecords,
         };
         warnings = warnings.concat(buildSheet(wb, ExcelJS, parsed, sheetCfg, sheetName(t, usedNames)));
       }
@@ -928,11 +1301,11 @@ const sectionDefs = [
     const w = [];
     if (!hasRatio && !tc.ratio.optional) w.push(`Raw Data 缺少或未勾選「${tc.ratio.top}」所需欄位,該欄不產出`);
     if (!hasCost) w.push(`Raw Data 缺少或未勾選「${tc.cost.top}」所需欄位,成本欄不產出`);
-    if (!parsed.hasSpend) w.push('Raw Data 找不到「花費含服務費」欄位,費用以 0 計');
+    if (!parsed.hasSpend) w.push('Raw Data 找不到「花費含服務費」或「已花費（TWD）」欄位,費用以 0 計');
     return w;
   }
 
-  return { parseRaw, buildWorkbook, buildSheet, aggregate, listDays, METRIC_DEFS, TYPE_CONFIG, colLetter, defaultMetricsForType, detectTypeFromCampaign, getTypeConfig, readEmbeddedConfig };
+  return { parseRaw, buildWorkbook, buildSheet, aggregate, aggregateByAdDimension, aggregateByAdGenderAge, listDays, METRIC_DEFS, TYPE_CONFIG, colLetter, defaultMetricsForType, detectTypeFromCampaign, getTypeConfig, readEmbeddedConfig };
 });
 
 </script>
@@ -944,10 +1317,13 @@ let metricState = [];   // 單一模式:{key,include} 依此順序產出欄位
 let typeMetricState = {}; // 複合模式:{CPM:[{key,include}],CPC:[...]} 欄位設定依「類型」共用
 let pageInfoState = {};   // 複合模式:{類型:{name,budget,unitPrice}}
 let campaignTypeState = {}; // {行銷活動名稱: CPM/CPC/LCPC/CPV/CPA/''}，可手動覆寫自動辨識
+let campaignBudgetState = {}; // {行銷活動名稱: 預算}; 同一 Campaign 下多支廣告共用
 let activeTab = null;     // 複合模式目前編輯的類型頁籤
 let conversionMetricState = '';      // CPA 分母欄位 key
 let conversionValueMetricState = ''; // ROAS 價值欄位 key
+let extraParsedList = [];          // 額外 Breakdown Raw Data（metric key 已對齊主檔）
 const ALL_TYPES = ['CPM', 'CPC', 'LCPC', 'CPV', 'CPA'];
+let singleMetricTouched = new Set(); // 單一模式手動調整過的欄位，不再被類型預設覆蓋
 
 /* ---------- 步驟 1:上傳解析 ---------- */
 function readXlsxRows(arrayBuffer) {
@@ -956,8 +1332,14 @@ function readXlsxRows(arrayBuffer) {
   return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
 }
 
-// 預設勾選：貼文互動不勾，其餘欄位預設勾選
-function defaultMetricInclude(key) {
+// 預設勾選：
+// 1) 觸及人數僅 CPM 預設勾選。
+// 2) 影片觀看相關欄位僅 CPV 預設勾選；CPM / CPC / LCPC / CPA 預設不勾。
+// 3) 貼文互動預設不勾。
+const VIDEO_METRIC_KEYS = new Set(['video3s', 'video15s', 'video25', 'video50', 'video75', 'video100']);
+function defaultMetricInclude(key, type = null) {
+  if (key === 'reach') return type === 'CPM';
+  if (VIDEO_METRIC_KEYS.has(key)) return type === 'CPV';
   const m = parsed && parsed.metricCols ? parsed.metricCols.find(x => x.key === key) : null;
   if (!m) return true;
   const txt = `${m.top || ''}${m.bottom || ''}${m.rawName || ''}`;
@@ -968,17 +1350,25 @@ function initFromParsed() {
   const mainType = document.querySelector('input[name=rtype]:checked').value;
   creativeState = parsed.ads.map(a => ({ raw: a, label: a, include: true, image: null }));
   const availKeys = parsed.metricCols.map(m => m.key);
-  metricState = ReportGen.defaultMetricsForType('CPM', availKeys)
-    .map(k => ({ key: k, include: defaultMetricInclude(k) }));
+  singleMetricTouched = new Set();
+  metricState = ReportGen.defaultMetricsForType(mainType, availKeys)
+    .map(k => ({ key: k, include: defaultMetricInclude(k, mainType) }));
   typeMetricState = {};
   pageInfoState = {};
   campaignTypeState = {};
-  for (const c of parsed.campaigns || []) campaignTypeState[c] = ReportGen.detectTypeFromCampaign(c) || '';
+  campaignBudgetState = {};
+  for (const c of parsed.campaigns || []) {
+    campaignTypeState[c] = ReportGen.detectTypeFromCampaign(c) || '';
+    campaignBudgetState[c] = '';
+  }
   conversionMetricState = pickConversionMetric(false);
   conversionValueMetricState = ''; // ROAS 為選配；建立新報表時不自動啟用
+  extraParsedList = [];
+  if ($('extraBreakdownInput')) $('extraBreakdownInput').value = '';
+  if ($('extraBreakdownStatus')) $('extraBreakdownStatus').innerHTML = '';
   for (const t of ALL_TYPES) {
     typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys)
-      .map(k => ({ key: k, include: defaultMetricInclude(k) }));
+      .map(k => ({ key: k, include: defaultMetricInclude(k, t) }));
     pageInfoState[t] = { name: '', budget: '', unitPrice: '' };
   }
 }
@@ -1006,6 +1396,45 @@ $('fileInput').addEventListener('change', e => {
     }
   };
   reader.readAsArrayBuffer(f);
+});
+
+
+// 額外 Breakdown 檔：只補充特殊維度，不改變主 Raw Data 的一般流程。
+function alignExtraParsed(ep) {
+  if (!parsed) return ep;
+  const mainByRaw = new Map(parsed.metricCols.map(m => [m.rawName, m.key]));
+  const mainKnown = new Map(parsed.metricCols.filter(m => m.known).map(m => [m.key, m.key]));
+  for (const rec of ep.records) {
+    const aligned = {};
+    for (const m of ep.metricCols) {
+      const target = mainKnown.get(m.key) || mainByRaw.get(m.rawName);
+      if (target) aligned[target] = rec.values[m.key] || 0;
+    }
+    rec.values = aligned;
+  }
+  ep.metricCols = parsed.metricCols;
+  return ep;
+}
+$('extraBreakdownInput').addEventListener('change', async e => {
+  const files = [...e.target.files];
+  extraParsedList = [];
+  if (!files.length) { $('extraBreakdownStatus').innerHTML = ''; refresh(); return; }
+  const chips = [], errs = [];
+  for (const f of files) {
+    try {
+      const ep = alignExtraParsed(ReportGen.parseRaw(readXlsxRows(await f.arrayBuffer())));
+      if (!ep.records.length) throw new Error('沒有有效資料列');
+      extraParsedList.push(ep);
+      const dims = [];
+      if (ep.regions.length) dims.push('地區');
+      if (ep.devices.length) dims.push('裝置');
+      if (ep.placements.length) dims.push('版位');
+      chips.push(`<span class="chip">✓ ${esc(f.name)}${dims.length ? `（${dims.join('／')}）` : ''}</span>`);
+    } catch (err) { errs.push(`${esc(f.name)}：${esc(err.message)}`); }
+  }
+  $('extraBreakdownStatus').innerHTML = (chips.length ? `<div class="chips">${chips.join('')}</div>` : '') +
+    (errs.length ? `<div class="error">${errs.join('<br>')}</div>` : '');
+  refresh();
 });
 
 /* ---------- 模式切換 ---------- */
@@ -1067,6 +1496,10 @@ function tryRestore() {
     $('secInterest').checked = cfg.sections ? !!cfg.sections.interest : true;
     $('secGender').checked = cfg.sections ? !!cfg.sections.gender : true;
     $('secAge').checked = cfg.sections ? !!cfg.sections.age : true;
+    $('secGenderAge').checked = cfg.sections ? !!cfg.sections.genderAge : false;
+    const bcs = cfg.byCreativeSections || {};
+    $('byCreGender').checked = !!bcs.gender; $('byCreAge').checked = !!bcs.age; $('byCreGenderAge').checked = !!bcs.genderAge; $('byCreInterest').checked = !!bcs.interest;
+    $('byCreRegion').checked = !!bcs.region; $('byCreDevice').checked = !!bcs.device; $('byCrePlacement').checked = !!bcs.placement;
     // 走期:起=舊設定,迄=新資料最大日期(週更自然延伸)
     $('fStart').value = cfg.startDate || parsed.dateMin;
     $('fEnd').value = parsed.dateMax;
@@ -1074,6 +1507,7 @@ function tryRestore() {
     // 欄位狀態:以新 Raw Data 實際欄位為準,套舊設定的順序與勾選
     const availKeys = parsed.metricCols.map(m => m.key);
     metricState = reconcileMetrics(cfg.metricState, availKeys);
+    singleMetricTouched = new Set((cfg.metricState || []).map(m => m.key));
     typeMetricState = {};
     for (const t of ALL_TYPES)
       typeMetricState[t] = reconcileMetrics((cfg.typeMetricState || {})[t], availKeys, t);
@@ -1086,6 +1520,12 @@ function tryRestore() {
       campaignTypeState[c] = (cfg.campaignTypeState && Object.prototype.hasOwnProperty.call(cfg.campaignTypeState, c))
         ? cfg.campaignTypeState[c]
         : (ReportGen.detectTypeFromCampaign(c) || '');
+    }
+    campaignBudgetState = {};
+    for (const c of parsed.campaigns || []) {
+      campaignBudgetState[c] = (cfg.campaignBudgetState && Object.prototype.hasOwnProperty.call(cfg.campaignBudgetState, c))
+        ? cfg.campaignBudgetState[c]
+        : '';
     }
     // 素材對帳:依 raw 名稱比對
     const savedCre = cfg.creatives || [];
@@ -1117,7 +1557,7 @@ function reconcileMetrics(saved, availKeys, typeForDefault) {
     for (const m of saved) if (avail.has(m.key)) out.push({ key: m.key, include: m.include !== false });
     for (const k of availKeys) if (!out.some(m => m.key === k)) out.push({ key: k, include: !saved.length });
   } else if (typeForDefault) {
-    for (const k of ReportGen.defaultMetricsForType(typeForDefault, availKeys)) out.push({ key: k, include: defaultMetricInclude(k) });
+    for (const k of ReportGen.defaultMetricsForType(typeForDefault, availKeys)) out.push({ key: k, include: defaultMetricInclude(k, typeForDefault) });
   } else {
     for (const k of availKeys) out.push({ key: k, include: true });
   }
@@ -1187,7 +1627,8 @@ function renderParseResult() {
   if (p.skippedRows) html += `<div class="warn">已自動略過 ${p.skippedRows} 列彙總/非日期資料(如「總覽」列)</div>`;
   const unknownCampaigns = (p.campaigns || []).filter(c => !ReportGen.detectTypeFromCampaign(c));
   if (unknownCampaigns.length) html += `<div class="warn">有 ${unknownCampaigns.length} 個行銷活動無法自動辨識類型；開啟複合報表後可手動指定。</div>`;
-  if (!p.hasSpend) html += `<div class="warn">找不到「花費含服務費」欄位,費用相關欄位將以 0 計</div>`;
+  if (p.hasSpend) html += `<div class="chips" style="margin-top:8px"><span class="chip">費用欄位 <b>${p.spendRawName}</b>${p.spendSource === 'service_included' ? '（優先使用含服務費）' : ''}</span></div>`;
+  else html += `<div class="warn">找不到「花費含服務費」或「已花費（TWD）」欄位,費用相關欄位將以 0 計</div>`;
   $('parseResult').innerHTML = html;
 }
 
@@ -1197,6 +1638,7 @@ function isComposite() { return $('compositeChk').checked; }
 function renderSettings() {
   $('fStart').value = parsed.dateMin; $('fEnd').value = parsed.dateMax;
   $('fStart').min = $('fEnd').min = parsed.dateMin;
+  renderCampaignBudgets();
   applyMode();
 }
 
@@ -1250,6 +1692,7 @@ function applyMode() {
   }
   updateCpvBasisVisibility();
   renderCreatives();
+  renderCampaignBudgets();
   refresh();
 }
 
@@ -1282,6 +1725,27 @@ function missingForType(t) {
   const miss = [...need].filter(k => !avail.has(k));
   return miss.length ? tc.cost.top : null; // 有缺就回傳成本欄名作提示依據
 }
+
+function renderCampaignBudgets() {
+  if (!parsed) return;
+  const campaigns = parsed.campaigns || [];
+  if (!campaigns.length) {
+    $('campaignBudgetList').innerHTML = '<div class="warn">Raw Data 找不到「行銷活動」欄，無法建立 Campaign 共用預算設定。</div>';
+    return;
+  }
+  $('campaignBudgetList').innerHTML = campaigns.map((c, i) => `
+    <div class="campaign-budget-row">
+      <div class="campaign-name" title="${esc(c)}">${esc(c)}</div>
+      <input type="number" min="0" step="1" data-cbudget="${i}" value="${esc(campaignBudgetState[c] ?? '')}" placeholder="預算 TWD">
+    </div>`).join('');
+}
+$('campaignBudgetList').addEventListener('input', e => {
+  if (e.target.dataset.cbudget == null) return;
+  const c = (parsed.campaigns || [])[+e.target.dataset.cbudget];
+  if (!c) return;
+  campaignBudgetState[c] = e.target.value;
+  refresh();
+});
 
 function renderCampaignMap() {
   if (!parsed) return;
@@ -1355,7 +1819,7 @@ $('metricToolsComposite').addEventListener('click', e => {
     const prev = typeMetricState[activeTab];
     const incl = new Map(prev.map(m => [m.key, m.include]));
     typeMetricState[activeTab] = ReportGen.defaultMetricsForType(activeTab, availKeys)
-      .map(k => ({ key: k, include: incl.has(k) ? incl.get(k) : defaultMetricInclude(k) }));
+      .map(k => ({ key: k, include: incl.has(k) ? incl.get(k) : defaultMetricInclude(k, activeTab) }));
     renderTypeMetrics(); refresh();
   }
 });
@@ -1398,7 +1862,16 @@ $('compositeChk').addEventListener('change', applyMode);
 // 單一模式的報表類型；複合模式的實際分頁由「行銷活動」辨識結果決定
 document.querySelectorAll('input[name=rtype]').forEach(r => r.addEventListener('change', () => {
   if (!parsed) return;
+  const newType = document.querySelector('input[name=rtype]:checked').value;
+  const reachState = metricState.find(m => m.key === 'reach');
+  if (reachState && !singleMetricTouched.has('reach')) reachState.include = (newType === 'CPM');
+  // 影片觀看欄位只在 CPV 預設開啟；使用者手動改過的欄位不覆蓋。
+  for (const key of VIDEO_METRIC_KEYS) {
+    const state = metricState.find(m => m.key === key);
+    if (state && !singleMetricTouched.has(key)) state.include = (newType === 'CPV');
+  }
   updateCpvBasisVisibility();
+  renderMetrics();
   refresh();
 }));
 document.querySelectorAll('input[name=cpvBasis]').forEach(r => r.addEventListener('change', () => {
@@ -1468,7 +1941,12 @@ $('metricList').addEventListener('click', e => {
   if (dn != null) { const i = +dn; [metricState[i + 1], metricState[i]] = [metricState[i], metricState[i + 1]]; renderMetrics(); refresh(); }
 });
 $('metricList').addEventListener('input', e => {
-  if (e.target.dataset.mi != null) { metricState[+e.target.dataset.mi].include = e.target.checked; renderMetrics(); refresh(); }
+  if (e.target.dataset.mi != null) {
+    const idx = +e.target.dataset.mi;
+    metricState[idx].include = e.target.checked;
+    singleMetricTouched.add(metricState[idx].key);
+    renderMetrics(); refresh();
+  }
 });
 
 /* ---------- 上刊圖:讀檔 + 單格 + 批次配對 ---------- */
@@ -1576,7 +2054,13 @@ function currentConfig() {
     conversionMetric: conversionMetricState,
     conversionValueMetric: conversionValueMetricState,
     campaignTypeMap: { ...campaignTypeState },
-    sections: { interest: $('secInterest').checked, gender: $('secGender').checked, age: $('secAge').checked },
+    campaignBudgets: Object.fromEntries(Object.entries(campaignBudgetState).map(([k,v]) => [k, parseFloat(v) || 0])),
+    sections: { interest: $('secInterest').checked, gender: $('secGender').checked, age: $('secAge').checked, genderAge: $('secGenderAge').checked },
+    byCreativeSections: {
+      gender: $('byCreGender').checked, age: $('byCreAge').checked, genderAge: $('byCreGenderAge').checked, interest: $('byCreInterest').checked,
+      region: $('byCreRegion').checked, device: $('byCreDevice').checked, placement: $('byCrePlacement').checked,
+    },
+    extraBreakdownRecords: extraParsedList.flatMap(x => x.records || []),
   };
   if (!isComposite()) {
     return {
@@ -1619,7 +2103,8 @@ function refresh() {
     renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length);
     const nCre = cfg.creatives.filter(c => c.include !== false).length;
     $('genSummary').textContent = `將產出:${cfg.type} 報表 · ${days} 天 × ${nCre} 個素材 × ${cfg.metrics.length} 個數據欄位` +
-      (Object.values(cfg.sections).some(Boolean) ? ' · 含受眾彙總區塊' : '');
+      (Object.values(cfg.sections).some(Boolean) ? ' · 含受眾彙總區塊' : '') +
+      (Object.values(cfg.byCreativeSections || {}).some(Boolean) ? ' · 含 By 素材交叉分析' : '');
   } else {
     // 藍圖顯示目前頁籤類型的版型
     if (activeTab) {
@@ -1675,17 +2160,18 @@ $('btnGen').addEventListener('click', async () => {
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 4, savedAt: new Date().toISOString().slice(0, 10),
+      v: 7, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
       mainType: document.querySelector('input[name=rtype]:checked').value,
       single: { name: $('fName').value.trim(), budget: $('fBudget').value, unitPrice: $('fUnit').value },
       startDate: cfg.startDate, endDate: cfg.endDate,
       sections: cfg.sections,
+      byCreativeSections: cfg.byCreativeSections,
       cpvBasis: cfg.cpvBasis,
       conversionMetricState, conversionValueMetricState,
       conversionMetricRaw: metricRawName(conversionMetricState),
       conversionValueMetricRaw: metricRawName(conversionValueMetricState),
-      campaignTypeState,
+      campaignTypeState, campaignBudgetState,
       metricState, typeMetricState, pageInfoState,
       creatives: creativeState,
     };
