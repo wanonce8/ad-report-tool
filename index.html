@@ -254,7 +254,19 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           <label style="display:flex;align-items:center;gap:6px">轉換價值（選配）
             <select id="conversionValueMetricSelect" class="creative-type" aria-label="ROAS 轉換價值欄位"></select>
           </label>
-          <span class="batch-note">CPA 一定依「轉換次數」計算；有指定轉換價值時，才額外產出 ROAS</span>
+          <span class="basis-title">公式欄位（選填）</span>
+          <label><input type="checkbox" id="cpaCalcCpc" checked>CPC</label>
+          <label><input type="checkbox" id="cpaCalcCtr" checked>CTR</label>
+          <label><input type="checkbox" id="cpaCalcLcpc" checked>LCPC</label>
+          <label><input type="checkbox" id="cpaCalcLctr" checked>LCTR</label>
+          <span class="basis-title">欄位名稱（選填）</span>
+          <label style="display:flex;align-items:center;gap:6px">加入購物車
+            <input type="text" id="labelAddToCart" placeholder="例：立即/捐款" style="width:125px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px">
+          </label>
+          <label style="display:flex;align-items:center;gap:6px">轉換
+            <input type="text" id="labelConversions" placeholder="例：捐款/完成" style="width:125px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px">
+          </label>
+          <span class="batch-note">欄位名稱留白時沿用預設；可用「/」分成上下兩行，例如「立即/捐款」。CPA 固定產出；CTR／CPC／LCTR／LCPC 可自由勾選，公式欄一律放在最後。ROAS 仍依「轉換價值」是否指定決定是否產出。</span>
         </div>
         <label class="composite-toggle"><input type="checkbox" id="compositeChk">
           <span><b>複合目標報表</b>：依行銷活動名稱自動辨識類型,各類型分別產出不同分頁</span></label>
@@ -266,6 +278,15 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           <div class="field"><label for="fStart">走期開始</label><input type="date" id="fStart"></div>
           <div class="field"><label for="fEnd">走期結束</label><input type="date" id="fEnd"></div>
         </div>
+      </fieldset>
+
+      <fieldset id="reportFileNameBox">
+        <legend>報表檔案名稱</legend>
+        <div class="field">
+          <label for="reportFileName">下載檔名（選填）</label>
+          <input type="text" id="reportFileName" placeholder="例：2609_客戶名稱_Meta週報">
+        </div>
+        <div class="advanced-note">只控制下載的 Excel 檔名，不影響各分頁名稱；留白時沿用原本名稱邏輯。</div>
       </fieldset>
 
       <!-- 單一模式:一組基本資訊 -->
@@ -483,7 +504,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     unitLabel: 'CPA',
     planLabel: '預計轉換次數',
     planExpr: 'B3/B5',
-    ratio: { top: 'ROAS', num: 'conversionValue', den: '__fee', numFmt: '0.00x', optional: true },
+    ratio: { top: 'ROAS', num: 'conversionValue', den: '__fee', numFmt: '0.00', optional: true },
     cost: { top: 'CPA', den: 'conversions' }
   },
 };
@@ -727,7 +748,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     return o;
   };
   const FMT = {
-    metric: '#,##0_);[Red](#,##0)', ratio: '0.00%', multiple: '0.00x', cost: '0.00_ ', fee: '#,##0',
+    metric: '#,##0_);[Red](#,##0)', ratio: '0.00%', ratioInt: '0%', multiple: '0.00', cost: '0.00_ ', cpa: '#,##0_);[Red](#,##0)', fee: '#,##0',
     date: 'mm-dd-yy', budget: '"NT$"#,##0_);("NT$"#,##0)', plan: '0_);[Red](0)', unit: '0.0_);[Red](0.0)',
   };
 
@@ -790,9 +811,23 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const ifErr = e => `IFERROR(${e},0)`;
 
     /* --- 欄位佈局 --- */
-    // 群組欄位順序:指標群 → 廣告費用 → [成本] → [比率]
-    // 公式欄統一採「成本指標在前、比率在後」：CPM/CPC/LCPC/CPV → 點擊率/LCTR/VTR。
-    const groupKeys = [...selKeys, ...(useExternalFee ? ['__baseFee'] : []), '__fee', ...(hasCost ? ['__cost'] : []), ...(hasRatio ? ['__ratio'] : [])];
+    // 群組欄位順序：原始指標 → 廣告費用 → 所有計算公式欄。
+    // CPA 報表額外補齊 CTR / CPC / LCTR / LCPC / CPA / ROAS，且公式欄一律集中在最後面。
+    // 其餘報表維持既有「成本指標 → 比率指標」邏輯，不改動原本格式。
+    const cpaCalcFields = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(config.cpaCalcFields || {}) };
+    const calcKeys = config.type === 'CPA' ? [
+      ...(cpaCalcFields.cpc && parsed.hasSpend && selKeys.includes('clicks') ? ['__cpc'] : []),
+      ...(cpaCalcFields.ctr && selKeys.includes('clicks') && selKeys.includes('impressions') ? ['__ctr'] : []),
+      ...(cpaCalcFields.lcpc && parsed.hasSpend && selKeys.includes('linkClicks') ? ['__lcpc'] : []),
+      ...(cpaCalcFields.lctr && selKeys.includes('linkClicks') && selKeys.includes('impressions') ? ['__lctr'] : []),
+      ...(hasCost ? ['__cpa'] : []),
+      ...(hasRatio ? ['__roas'] : []),
+    ] : [
+      ...(hasCost ? ['__cost'] : []),
+      ...(hasRatio ? ['__ratio'] : []),
+    ];
+    const calcKeySet = new Set(calcKeys);
+    const groupKeys = [...selKeys, ...(useExternalFee ? ['__baseFee'] : []), '__fee', ...calcKeys];
     const groupW = groupKeys.length;
     const dStart = 2;
     // 素材區塊緊密橫向排列，不在每支素材前額外插空白欄。
@@ -876,10 +911,21 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     });
 
     /* --- 表頭(第 9-10 列) --- */
-    const headText = k => k === '__ratio' ? [tc.ratio.top, ''] : k === '__cost' ? [tc.cost.top, ''] :
+    const calcHead = k => ({
+      __ctr: 'CTR', __cpc: 'CPC', __lctr: 'LCTR', __lcpc: 'LCPC', __cpa: 'CPA', __roas: 'ROAS',
+      __cost: tc.cost.top, __ratio: tc.ratio.top,
+    }[k] || '');
+    const splitCustomHeader = (value, fallbackTop, fallbackBottom) => {
+      const txt = String(value || '').trim();
+      if (!txt) return [fallbackTop, fallbackBottom];
+      const parts = txt.split(/[\/｜|\n]/).map(x => x.trim()).filter(Boolean);
+      return parts.length >= 2 ? [parts[0], parts.slice(1).join(' ')] : [txt, ''];
+    };
+    const metricLabelOverrides = config.metricLabelOverrides || {};
+    const headText = k => calcKeySet.has(k) ? [calcHead(k), ''] :
       k === '__baseFee' ? ['廣告', '花費'] :
       k === '__fee' ? (useExternalFee ? ['外加', `${feeRateLabel}%服務費`] : ['廣告費用', '']) :
-      (m => [m.top, m.bottom])(selected.find(m => m.key === k));
+      (m => m ? splitCustomHeader(metricLabelOverrides[k], m.top, m.bottom) : ['', ''])(selected.find(m => m.key === k));
     const headGroup = (start, dark, feeAsTwoLine) => {
       groupKeys.forEach((k, i) => {
         const c = start + i;
@@ -889,7 +935,12 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         const style = dark ? { font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE) } : { font: { bold: true } };
         set(9, c, { value: top, ...style, border: bd('medium', 'thin', l, r), h: 'center' });
         set(10, c, { value: bottom || undefined, ...style, border: bd('thin', 'medium', l, r), h: 'center' });
-        if (!bottom) ws.mergeCells(9, c, 10, c);
+        if (!bottom) {
+          ws.mergeCells(9, c, 10, c);
+          // 單列表頭合併後，ExcelJS 會以左上角儲存格樣式為主；
+          // 因此把合併儲存格的下框線明確設為 medium，維持「表頭／數據」粗分隔線。
+          set(9, c, { value: top, ...style, border: bd('medium', 'medium', l, r), h: 'center' });
+        }
       });
     };
     const [al, ar] = vSide(1);
@@ -902,6 +953,20 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     /* --- 每日資料列 --- */
     const r0 = 11;
     const cellFor = (k, start) => colLetter(gCol(start, k));
+    const calcFormula = (k, start, row) => {
+      const ref = key => `${cellFor(key, start)}${row}`;
+      if (k === '__ctr') return ifErr(`${ref('clicks')}/${ref('impressions')}`);
+      if (k === '__cpc') return ifErr(`${ref('__fee')}/${ref('clicks')}`);
+      if (k === '__lctr') return ifErr(`${ref('linkClicks')}/${ref('impressions')}`);
+      if (k === '__lcpc') return ifErr(`${ref('__fee')}/${ref('linkClicks')}`);
+      if (k === '__cpa') return ifErr(`${ref('__fee')}/${ref(tc.cost.den)}`);
+      if (k === '__roas') return ifErr(`${ref(tc.ratio.num)}/${ref('__fee')}`);
+      if (k === '__ratio') return ifErr(`${ref(tc.ratio.num)}/${ref(tc.ratio.den)}`);
+      if (k === '__cost') return ifErr(`${ref('__fee')}/${ref(tc.cost.den)}${tc.cost.perMille ? '*1000' : ''}`);
+      return '0';
+    };
+    const calcNumFmt = k => (k === '__ctr' || k === '__lctr' || k === '__ratio') ? (k === '__ratio' ? (tc.ratio.numFmt || FMT.ratio) : FMT.ratio)
+      : (k === '__roas' ? (tc.ratio.numFmt || FMT.multiple) : (k === '__cpa' ? FMT.cpa : FMT.cost));
     days.forEach((day, i) => {
       const r = r0 + i;
       // 各素材該日是否有資料
@@ -918,8 +983,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           const c = bStart + j, [l, rr] = vSide(c), border = bd('thin', 'thin', l, rr);
           const greyFill = has ? undefined : fill(GREY);
           // 非走期整列反灰:比率/成本欄保留 0 值但儲存格也反灰;數據欄與費用欄反灰留空
-          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, bStart)}${r}/${cellFor(tc.ratio.den, bStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, fill: greyFill, border });
-          else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', bStart)}${r}/${cellFor(tc.cost.den, bStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, fill: greyFill, border });
+          if (calcKeySet.has(k)) set(r, c, { formula: calcFormula(k, bStart, r), numFmt: calcNumFmt(k), fill: greyFill, border });
           else if (!has) set(r, c, { fill: fill(GREY), border });
           else if (k === '__baseFee') set(r, c, { value: Math.round(baseSpendValue(data.spend) * 100) / 100, numFmt: FMT.fee, border });
           else if (k === '__fee') set(r, c, { value: Math.round(data.spend * 100) / 100, numFmt: FMT.fee, border });
@@ -929,8 +993,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       groupKeys.forEach((k, j) => {
         const c = dStart + j, [l, rr] = vSide(c), border = bd('thin', 'thin', l, rr);
         const greyFill = dailyHasData ? undefined : fill(GREY);
-        if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, fill: greyFill, border });
-        else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, fill: greyFill, border });
+        if (calcKeySet.has(k)) set(r, c, { formula: calcFormula(k, dStart, r), numFmt: calcNumFmt(k), fill: greyFill, border });
         else if (!dailyHasData) set(r, c, { fill: fill(GREY), border });
         else set(r, c, { formula: blocks.map(b => `${cellFor(k, b)}${r}`).join('+') || '0', numFmt: (k === '__fee' || k === '__baseFee') ? FMT.fee : FMT.metric, border });
       });
@@ -942,8 +1005,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const totGroup = start => groupKeys.forEach((k, j) => {
       const c = start + j, [l, rr] = vSide(c), border = bd('medium', 'medium', l, rr);
       const style = { font: { color: { argb: WHITE } }, fill: fill(DKBLUE), border };
-      if (k === '__ratio') set(rTot, c, { formula: ifErr(`${cellFor(tc.ratio.num, start)}${rTot}/${cellFor(tc.ratio.den, start)}${rTot}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...style });
-      else if (k === '__cost') set(rTot, c, { formula: ifErr(`${cellFor('__fee', start)}${rTot}/${cellFor(tc.cost.den, start)}${rTot}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
+      if (calcKeySet.has(k)) set(rTot, c, { formula: calcFormula(k, start, rTot), numFmt: calcNumFmt(k), ...style });
       // Reach（每日觸及人數）為去重後的 non-additive metric，跨日不可直接 SUM。
       // 總計列保留版型與儲存格樣式，但不產生加總值。
       else if (k === 'reach') set(rTot, c, { value: null, numFmt: FMT.metric, ...style });
@@ -962,7 +1024,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     set(rTot + 1, 1, { value: '總預算', font: { bold: true }, fill: fill(YELLOW), border: bd('medium', null, 'medium', 'thin') });
     set(rTot + 1, summaryLastCol, { formula: 'B3', numFmt: FMT.fee, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('medium', null, summaryLastCol === 1 ? 'medium' : 'thin', 'medium'), h: 'center' });
     set(rTot + 2, 1, { value: '總執行率', font: { bold: true }, fill: fill(YELLOW), border: bd('thin', 'medium', 'medium', 'thin') });
-    set(rTot + 2, summaryLastCol, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/${colLetter(summaryLastCol)}${rTot + 1}`), numFmt: tc.ratio.numFmt || FMT.ratio, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('thin', 'medium', summaryLastCol === 1 ? 'medium' : 'thin', 'medium'), h: 'center' });
+    set(rTot + 2, summaryLastCol, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/${colLetter(summaryLastCol)}${rTot + 1}`), numFmt: FMT.ratioInt, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('thin', 'medium', summaryLastCol === 1 ? 'medium' : 'thin', 'medium'), h: 'center' });
 
     /* --- 興趣群組 / 性別 / 年齡(欄位鏡射每日總表) --- */
     // 各資料區塊之間固定保留 2 個空白列（原本 1 列）。
@@ -998,12 +1060,11 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         for(const age of ages){
           detailRows.push(r);
           const d=amap.get(age)||{spend:0,values:{}};
-          const rowZero=Math.abs(Number(d.spend)||0)<1e-12 && groupKeys.filter(k=>!['__ratio','__cost','__fee','__baseFee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);
+          const rowZero=Math.abs(Number(d.spend)||0)<1e-12 && groupKeys.filter(k=>!calcKeySet.has(k)&&!['__fee','__baseFee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);
           set(r,2,{value:age,fill:rowZero?fill(GREY):undefined,border:bd('thin','thin','thin','thin')});
           groupKeys.forEach((k,j)=>{
             const c=gaStart+j,common={border:bd('thin','thin',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin'),fill:rowZero?fill(GREY):undefined};
-            if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...common});
-            else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...common});
+            if(calcKeySet.has(k)) set(r,c,{formula:calcFormula(k,gaStart,r),numFmt:calcNumFmt(k),...common});
             else if(k==='__baseFee') set(r,c,{value:Math.round(baseSpendValue(d.spend)*100)/100,numFmt:FMT.fee,...common});
             else if(k==='__fee') set(r,c,{value:Math.round(d.spend*100)/100,numFmt:FMT.fee,...common});
             else set(r,c,{value:d.values[k]||0,numFmt:FMT.metric,...common});
@@ -1015,8 +1076,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         set(r,1,{value:`${gender}總計`,font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,1,r,2);
         groupKeys.forEach((k,j)=>{
           const c=gaStart+j,style={font:{color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin')};
-          if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});
-          else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});
+          if(calcKeySet.has(k)) set(r,c,{formula:calcFormula(k,gaStart,r),numFmt:calcNumFmt(k),...style});
           else if(k==='reach') set(r,c,{value:null,numFmt:FMT.metric,...style});
           else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});
         }); r++;
@@ -1024,8 +1084,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       set(r,1,{value:'總計',font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,1,r,2);
       groupKeys.forEach((k,j)=>{
         const c=gaStart+j,style={font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin')};
-        if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});
-        else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});
+        if(calcKeySet.has(k)) set(r,c,{formula:calcFormula(k,gaStart,r),numFmt:calcNumFmt(k),...style});
         else if(k==='reach') set(r,c,{value:null,numFmt:FMT.metric,...style});
         else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});
       });
@@ -1062,8 +1121,7 @@ const sectionDefs = [
         set(r, 1, { value: gk, border: bd('thin', 'thin', ...audSide(1)) });
         groupKeys.forEach((k, j) => {
           const c = dStart + j, [l, rr] = audSide(c), border = bd('thin', 'thin', l, rr);
-          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, border });
-          else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, border });
+          if (calcKeySet.has(k)) set(r, c, { formula: calcFormula(k, dStart, r), numFmt: calcNumFmt(k), border });
           else if (k === '__baseFee') set(r, c, { value: Math.round(baseSpendValue(d.spend) * 100) / 100, numFmt: FMT.fee, border });
           else if (k === '__fee') set(r, c, { value: Math.round(d.spend * 100) / 100, numFmt: FMT.fee, border });
           else set(r, c, { value: d.values[k] || 0, numFmt: FMT.metric, border });
@@ -1075,8 +1133,7 @@ const sectionDefs = [
       groupKeys.forEach((k, j) => {
         const c = dStart + j, [l, rr] = audSide(c);
         const style = { font: { color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', l, rr) };
-        if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...style });
-        else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
+        if (calcKeySet.has(k)) set(r, c, { formula: calcFormula(k, dStart, r), numFmt: calcNumFmt(k), ...style });
         // Reach 不可由性別／年齡／興趣分群直接加總，避免重複觸及被誤當總觸及。
         else if (k === 'reach') set(r, c, { value: null, numFmt: FMT.metric, ...style });
         else set(r, c, { formula: `SUM(${colLetter(c)}${rs + 2}:${colLetter(c)}${r - 1})`, numFmt: (k === '__fee' || k === '__baseFee') ? FMT.fee : FMT.metric, ...style });
@@ -1108,16 +1165,16 @@ const sectionDefs = [
           const ageSet=new Set(); gaMaps.forEach(gm=>{const am=gm.get(gender);if(am)am.forEach((_,a)=>ageSet.add(a));}); const ages=sortFixed(ageSet,ageOrder); if(!ages.length) continue; const gStart=r;
           for(const age of ages){
             detailRows.push(r);
-            const zeros=creatives.map((_,ci)=>{const d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}};return Math.abs(Number(d.spend)||0)<1e-12&&groupKeys.filter(k=>!['__ratio','__cost','__fee','__baseFee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);});
+            const zeros=creatives.map((_,ci)=>{const d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}};return Math.abs(Number(d.spend)||0)<1e-12&&groupKeys.filter(k=>!calcKeySet.has(k)&&!['__fee','__baseFee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);});
             set(r,ageCol,{value:age,fill:zeros.every(Boolean)?fill(GREY):undefined,border:bd('thin','thin','thin','thin')});
-            creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1,d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}},zf=zeros[ci]?fill(GREY):undefined;groupKeys.forEach((k,j)=>{const c=st+j,common={border:bd('thin','thin',j===0?'medium':'thin',c===en?'medium':'thin'),fill:zf};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...common});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...common});else if(k==='__baseFee')set(r,c,{value:Math.round(baseSpendValue(d.spend||0)*100)/100,numFmt:FMT.fee,...common});else if(k==='__fee')set(r,c,{value:Math.round((d.spend||0)*100)/100,numFmt:FMT.fee,...common});else set(r,c,{value:(d.values&&d.values[k])||0,numFmt:FMT.metric,...common});});}); r++;
+            creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1,d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}},zf=zeros[ci]?fill(GREY):undefined;groupKeys.forEach((k,j)=>{const c=st+j,common={border:bd('thin','thin',j===0?'medium':'thin',c===en?'medium':'thin'),fill:zf};if(calcKeySet.has(k))set(r,c,{formula:calcFormula(k,st,r),numFmt:calcNumFmt(k),...common});else if(k==='__baseFee')set(r,c,{value:Math.round(baseSpendValue(d.spend||0)*100)/100,numFmt:FMT.fee,...common});else if(k==='__fee')set(r,c,{value:Math.round((d.spend||0)*100)/100,numFmt:FMT.fee,...common});else set(r,c,{value:(d.values&&d.values[k])||0,numFmt:FMT.metric,...common});});}); r++;
           }
           const gEnd=r-1; set(gStart,genderCol,{value:gender,border:bd('thin','thin','medium','thin'),h:'center'}); if(gEnd>gStart){ws.mergeCells(gStart,genderCol,gEnd,genderCol);set(gStart,genderCol,{value:gender,border:bd('thin','thin','medium','thin'),h:'center'});}
           set(r,genderCol,{value:`${gender}總計`,font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,genderCol,r,ageCol);
-          creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});});}); r++;
+          creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(calcKeySet.has(k))set(r,c,{formula:calcFormula(k,st,r),numFmt:calcNumFmt(k),...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});});}); r++;
         }
         set(r,genderCol,{value:'總計',font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,genderCol,r,ageCol);
-        creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});});}); rs=r+3;
+        creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(calcKeySet.has(k))set(r,c,{formula:calcFormula(k,st,r),numFmt:calcNumFmt(k),...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});});}); rs=r+3;
       }
     }
 
@@ -1184,7 +1241,7 @@ const sectionDefs = [
           const d = maps[ci].get(gk) || { spend: 0, values: {} };
           const spendZero = Math.abs(Number(d.spend) || 0) < 1e-12;
           const valuesZero = groupKeys
-            .filter(k => !['__ratio', '__cost', '__fee'].includes(k))
+            .filter(k => !calcKeySet.has(k) && !['__fee', '__baseFee'].includes(k))
             .every(k => Math.abs(Number((d.values && d.values[k]) || 0)) < 1e-12);
           return spendZero && valuesZero;
         });
@@ -1203,8 +1260,7 @@ const sectionDefs = [
             const c = metricStart + j;
             const border = bd('thin', 'thin', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin');
             const common = { border, fill: zeroFill };
-            if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, metricStart)}${r}/${cellFor(tc.ratio.den, metricStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...common });
-            else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', metricStart)}${r}/${cellFor(tc.cost.den, metricStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...common });
+            if (calcKeySet.has(k)) set(r, c, { formula: calcFormula(k, metricStart, r), numFmt: calcNumFmt(k), ...common });
             else if (k === '__baseFee') set(r, c, { value: Math.round(baseSpendValue(d.spend || 0) * 100) / 100, numFmt: FMT.fee, ...common });
             else if (k === '__fee') set(r, c, { value: Math.round((d.spend || 0) * 100) / 100, numFmt: FMT.fee, ...common });
             else set(r, c, { value: (d.values && d.values[k]) || 0, numFmt: FMT.metric, ...common });
@@ -1224,8 +1280,7 @@ const sectionDefs = [
             font: { color: { argb: WHITE } }, fill: fill(DKBLUE),
             border: bd('medium', 'medium', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin')
           };
-          if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, metricStart)}${r}/${cellFor(tc.ratio.den, metricStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...style });
-          else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', metricStart)}${r}/${cellFor(tc.cost.den, metricStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
+          if (calcKeySet.has(k)) set(r, c, { formula: calcFormula(k, metricStart, r), numFmt: calcNumFmt(k), ...style });
           else if (k === 'reach') set(r, c, { value: null, numFmt: FMT.metric, ...style });
           else set(r, c, { formula: `SUM(${colLetter(c)}${hr + 2}:${colLetter(c)}${r - 1})`, numFmt: (k === '__fee' || k === '__baseFee') ? FMT.fee : FMT.metric, ...style });
         });
@@ -1242,11 +1297,7 @@ const sectionDefs = [
       const c = start + j;
       const [top, bottom] = headText(k);
       noteW(c, textW(top)); noteW(c, textW(bottom));
-      if (k === '__ratio') noteW(c, 8);
-      else if (k === '__cost') {
-        const den = totals.values[tc.cost.den] || 0;
-        noteW(c, numW(den ? totals.spend / den * (tc.cost.perMille ? 1000 : 1) : 0, 2));
-      }
+      if (calcKeySet.has(k)) noteW(c, 9);
       else if (k === '__baseFee') noteW(c, numW(baseSpendValue(totals.spend)));
       else if (k === '__fee') noteW(c, numW(totals.spend));
       else noteW(c, numW(totals.values[k] || 0));
@@ -1355,6 +1406,8 @@ const sectionDefs = [
           byCreativeSections: config.byCreativeSections,
           extraBreakdownRecords: config.extraBreakdownRecords,
           adHeaderFields: config.adHeaderFields,
+          cpaCalcFields: config.cpaCalcFields,
+          metricLabelOverrides: config.metricLabelOverrides,
         };
         warnings = warnings.concat(buildSheet(wb, ExcelJS, parsed, sheetCfg, sheetName(t, usedNames)));
       }
@@ -1434,7 +1487,10 @@ function readXlsxRows(arrayBuffer) {
 // 2) 影片觀看相關欄位僅 CPV 預設勾選；CPM / CPC / LCPC / CPA 預設不勾。
 // 3) 貼文互動預設不勾。
 const VIDEO_METRIC_KEYS = new Set(['video3s', 'video15s', 'video25', 'video50', 'video75', 'video100']);
+// 轉換漏斗欄位只屬於 CPA／轉換型報表；複合報表的 CPC／CPM／LCPC／CPV 分頁不顯示也不產出。
+const CPA_ONLY_METRIC_KEYS = new Set(['addToCart', 'conversions', 'conversionValue']);
 function defaultMetricInclude(key, type = null) {
+  if (CPA_ONLY_METRIC_KEYS.has(key)) return type === 'CPA';
   if (key === 'reach') return type === 'CPM';
   if (VIDEO_METRIC_KEYS.has(key)) return type === 'CPV';
   const m = parsed && parsed.metricCols ? parsed.metricCols.find(x => x.key === key) : null;
@@ -1460,10 +1516,14 @@ function initFromParsed() {
   }
   conversionMetricState = pickConversionMetric(false);
   conversionValueMetricState = ''; // ROAS 為選配；建立新報表時不自動啟用
+  if ($('labelAddToCart')) $('labelAddToCart').value = '';
+  if ($('labelConversions')) $('labelConversions').value = '';
+  if ($('reportFileName')) $('reportFileName').value = '';
   extraParsedList = [];
   resetBreakdownUploads();
   for (const t of ALL_TYPES) {
     typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys)
+      .filter(k => metricAllowedForType(k, t))
       .map(k => ({ key: k, include: defaultMetricInclude(k, t) }));
     pageInfoState[t] = { name: '', budget: '', unitPrice: '' };
   }
@@ -1666,7 +1726,7 @@ $('rawUpdateInput').addEventListener('change', e => {
   };
   reader.readAsArrayBuffer(f);
 });
-// _config v10：保留 v9 Breakdown 設定，新增各廣告上方資訊顯示選項。
+// _config v14：延續既有設定；修正複合 CPA 自訂欄名/公式設定傳遞，並新增獨立報表檔案名稱。
 function migrateEmbeddedConfig(rawCfg) {
   const cfg = rawCfg ? { ...rawCfg } : null;
   if (!cfg) return null;
@@ -1683,7 +1743,33 @@ function migrateEmbeddedConfig(rawCfg) {
     cfg.adHeaderFields = { campaign: false, ad: true, date: true, budget: true };
     cfg.v = 10;
   }
+  if (v < 11) {
+    // v10 的 CPA 報表會自動產出這四個延伸公式；migration 預設全開以維持既有輸出。
+    cfg.cpaCalcFields = { ctr: true, cpc: true, lctr: true, lcpc: true };
+    cfg.v = 11;
+  }
+  if (v < 12) {
+    cfg.metricLabelOverrides = { addToCart: '', conversions: '' };
+    cfg.v = 12;
+  }
+  if (v < 13) {
+    // v13：複合報表中購物車／轉換／轉換值只屬於 CPA 分頁；移除舊設定誤帶到其他類型的欄位。
+    if (cfg.typeMetricState) {
+      const cpaOnly = new Set(['addToCart', 'conversions', 'conversionValue']);
+      for (const t of ['CPM','CPC','LCPC','CPV']) {
+        if (Array.isArray(cfg.typeMetricState[t])) cfg.typeMetricState[t] = cfg.typeMetricState[t].filter(m => !cpaOnly.has(m.key));
+      }
+    }
+    cfg.v = 13;
+  }
+  if (v < 14) {
+    // v14：新增獨立「報表檔案名稱」；舊單一報表先沿用原本名稱，複合報表留白以維持既有檔名邏輯。
+    cfg.reportFileName = cfg.reportFileName || (!cfg.composite && cfg.single ? (cfg.single.name || '') : '');
+    cfg.v = 14;
+  }
   if (!cfg.adHeaderFields) cfg.adHeaderFields = { campaign: false, ad: true, date: true, budget: true };
+  cfg.cpaCalcFields = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
+  cfg.metricLabelOverrides = { addToCart: '', conversions: '', ...(cfg.metricLabelOverrides || {}) };
   if (cfg.serviceFeeRate == null) cfg.serviceFeeRate = 0;
   if (cfg.serviceFeeMode == null) {
     const r = Number(cfg.serviceFeeRate) || 0;
@@ -1707,6 +1793,7 @@ function tryRestore() {
     const br = document.querySelector(`input[name=cpvBasis][value=${restoredBasis}]`);
     if (br) br.checked = true;
     if (cfg.single) { $('fName').value = cfg.single.name || ''; $('fBudget').value = cfg.single.budget || ''; $('fUnit').value = cfg.single.unitPrice || ''; }
+    if ($('reportFileName')) $('reportFileName').value = cfg.reportFileName || '';
     const restoredFeeRate = Math.max(0, Number(cfg.serviceFeeRate) || 0);
     const restoredFeeMode = cfg.serviceFeeMode === 'custom' ? 'custom' : (restoredFeeRate === 15 ? '15' : restoredFeeRate === 20 ? '20' : '0');
     $('serviceFeeSelect').value = restoredFeeMode;
@@ -1742,6 +1829,14 @@ function tryRestore() {
       typeMetricState[t] = reconcileMetrics((cfg.typeMetricState || {})[t], availKeys, t);
     conversionMetricState = resolveSavedMetric(cfg.conversionMetricState, cfg.conversionMetricRaw, false);
     conversionValueMetricState = resolveSavedMetric(cfg.conversionValueMetricState, cfg.conversionValueMetricRaw, true);
+    const ccf = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
+    $('cpaCalcCtr').checked = !!ccf.ctr;
+    $('cpaCalcCpc').checked = !!ccf.cpc;
+    $('cpaCalcLctr').checked = !!ccf.lctr;
+    $('cpaCalcLcpc').checked = !!ccf.lcpc;
+    const mlo = { addToCart: '', conversions: '', ...(cfg.metricLabelOverrides || {}) };
+    $('labelAddToCart').value = mlo.addToCart || '';
+    $('labelConversions').value = mlo.conversions || '';
     pageInfoState = cfg.pageInfoState || {};
     for (const t of ALL_TYPES) ensurePageInfo(t);
     campaignTypeState = {};
@@ -1781,15 +1876,16 @@ function tryRestore() {
 }
 // 舊欄位設定 + 新可用欄位 → 對齊(舊順序優先,缺的略過,新欄位補到尾端)
 function reconcileMetrics(saved, availKeys, typeForDefault) {
-  const avail = new Set(availKeys);
+  const allowedKeys = typeForDefault ? availKeys.filter(k => metricAllowedForType(k, typeForDefault)) : availKeys;
+  const avail = new Set(allowedKeys);
   const out = [];
   if (saved && saved.length) {
     for (const m of saved) if (avail.has(m.key)) out.push({ key: m.key, include: m.include !== false });
-    for (const k of availKeys) if (!out.some(m => m.key === k)) out.push({ key: k, include: !saved.length });
+    for (const k of allowedKeys) if (!out.some(m => m.key === k)) out.push({ key: k, include: false });
   } else if (typeForDefault) {
-    for (const k of ReportGen.defaultMetricsForType(typeForDefault, availKeys)) out.push({ key: k, include: defaultMetricInclude(k, typeForDefault) });
+    for (const k of ReportGen.defaultMetricsForType(typeForDefault, allowedKeys)) out.push({ key: k, include: defaultMetricInclude(k, typeForDefault) });
   } else {
-    for (const k of availKeys) out.push({ key: k, include: true });
+    for (const k of allowedKeys) out.push({ key: k, include: true });
   }
   return out;
 }
@@ -2018,18 +2114,30 @@ $('metricTabs').addEventListener('click', e => {
   if (t) { activeTab = t; renderTypeTabs(); renderTypeMetrics(); }
 });
 
+function metricAllowedForType(key, type) {
+  return type === 'CPA' || !CPA_ONLY_METRIC_KEYS.has(key);
+}
+function filterMetricsForType(list, type) {
+  return (list || []).filter(m => metricAllowedForType(m.key, type));
+}
 function renderTypeMetrics() {
   if (!activeTab) { $('metricListComposite').innerHTML = ''; return; }
+  // 非 CPA 分頁完全隱藏 CPA 專用轉換欄，避免 CPC 等分頁誤帶購物車／轉換／轉換值。
+  typeMetricState[activeTab] = filterMetricsForType(typeMetricState[activeTab], activeTab);
   const list = typeMetricState[activeTab] || [];
   const avail = new Set(parsed.metricCols.map(m => m.key));
   const rows = list.map((ms, i) => {
     const m = parsed.metricCols.find(x => x.key === ms.key);
     const missing = !avail.has(ms.key);
+    const override = activeTab === 'CPA' && (ms.key === 'addToCart' || ms.key === 'conversions')
+      ? ((ms.key === 'addToCart' ? $('labelAddToCart').value : $('labelConversions').value) || '').trim()
+      : '';
+    const displayName = override || (m ? `${m.top || ''}${m.bottom || ''}` : ms.key);
     return `<div class="metric-row${ms.include ? '' : ' off'}${missing ? ' missing' : ''}" data-idx="${i}">
       <span class="grip" title="拖曳排序" draggable="true">⠿</span>
-      <input type="checkbox" data-tmi="${i}" ${ms.include ? 'checked' : ''} ${missing ? 'disabled' : ''} aria-label="是否產出 ${esc(m ? m.top + m.bottom : ms.key)}">
+      <input type="checkbox" data-tmi="${i}" ${ms.include ? 'checked' : ''} ${missing ? 'disabled' : ''} aria-label="是否產出 ${esc(displayName)}">
       <span class="ord mono">${i + 1}</span>
-      <span class="mname">${m ? esc(m.top) + esc(m.bottom) : esc(ms.key)}</span>
+      <span class="mname">${esc(displayName)}</span>
       <span class="raw" title="${m ? esc(cleanMetricDisplayName(m.rawName)) : ''}">${m ? esc(cleanMetricDisplayName(m.rawName)) : ''}</span>
       ${missing ? '<span class="miss-tag">缺此欄</span>' : ''}
       <button data-tmup="${i}" title="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
@@ -2049,6 +2157,7 @@ $('metricToolsComposite').addEventListener('click', e => {
     const prev = typeMetricState[activeTab];
     const incl = new Map(prev.map(m => [m.key, m.include]));
     typeMetricState[activeTab] = ReportGen.defaultMetricsForType(activeTab, availKeys)
+      .filter(k => metricAllowedForType(k, activeTab))
       .map(k => ({ key: k, include: incl.has(k) ? incl.get(k) : defaultMetricInclude(k, activeTab) }));
     renderTypeMetrics(); refresh();
   }
@@ -2063,6 +2172,14 @@ $('metricListComposite').addEventListener('click', e => {
 $('metricListComposite').addEventListener('input', e => {
   if (!activeTab) return;
   if (e.target.dataset.tmi != null) { typeMetricState[activeTab][+e.target.dataset.tmi].include = e.target.checked; renderTypeMetrics(); refresh(); }
+});
+
+['labelAddToCart','labelConversions'].forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener('input', () => {
+    if (isComposite() && activeTab === 'CPA') renderTypeMetrics();
+    refresh();
+  });
 });
 
 function renderTypeInfos() {
@@ -2126,6 +2243,8 @@ $('conversionValueMetricSelect').addEventListener('change', e => {
   if (isComposite()) renderTypeMetrics(); else renderMetrics();
   refresh();
 });
+['cpaCalcCtr','cpaCalcCpc','cpaCalcLctr','cpaCalcLcpc'].forEach(id => $(id).addEventListener('change', refresh));
+['labelAddToCart','labelConversions'].forEach(id => $(id).addEventListener('input', refresh));
 
 function renderCreatives() {
   const comp = isComposite();
@@ -2298,16 +2417,28 @@ function updateServiceFeeUI() {
 }
 $('serviceFeeSelect').addEventListener('change', () => { updateServiceFeeUI(); refresh(); });
 $('serviceFeeCustom').addEventListener('input', () => { updateServiceFeeUI(); refresh(); });
+$('reportFileName').addEventListener('input', refresh);
 
 /* ---------- 即時狀態 ---------- */
 function currentConfig() {
   const mainType = document.querySelector('input[name=rtype]:checked').value;
   const base = {
     startDate: $('fStart').value, endDate: $('fEnd').value,
+    reportFileName: $('reportFileName').value.trim(),
     creatives: creativeState,
     cpvBasis: getCpvBasis(),
     conversionMetric: conversionMetricState,
     conversionValueMetric: conversionValueMetricState,
+    cpaCalcFields: {
+      ctr: $('cpaCalcCtr').checked,
+      cpc: $('cpaCalcCpc').checked,
+      lctr: $('cpaCalcLctr').checked,
+      lcpc: $('cpaCalcLcpc').checked,
+    },
+    metricLabelOverrides: {
+      addToCart: $('labelAddToCart').value.trim(),
+      conversions: $('labelConversions').value.trim(),
+    },
     campaignTypeMap: { ...campaignTypeState },
     campaignBudgets: Object.fromEntries(Object.entries(campaignBudgetState).map(([k,v]) => [k, parseFloat(v) || 0])),
     serviceFeeMode: getServiceFeeMode(),
@@ -2335,7 +2466,7 @@ function currentConfig() {
   // 複合模式:欄位依「類型」共用;名稱/預算/單價依「分頁」各一組
   const typeConfigs = {};
   for (const t of ALL_TYPES) {
-    typeConfigs[t] = { metrics: (typeMetricState[t] || []).filter(m => m.include).map(m => m.key) };
+    typeConfigs[t] = { metrics: filterMetricsForType(typeMetricState[t], t).filter(m => m.include).map(m => m.key) };
   }
   const pageConfigs = {};
   for (const { page } of usedPages()) {
@@ -2361,7 +2492,7 @@ function refresh() {
   if (!cfg.composite) {
     const tc = ReportGen.getTypeConfig(cfg.type, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric);
     $('unitLabel').textContent = tc.unitLabel + ' 單價';
-    renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length, null, cfg.serviceFeeRate);
+    renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length, null, cfg.serviceFeeRate, cfg.cpaCalcFields, cfg.metricLabelOverrides);
     const nCre = cfg.creatives.filter(c => c.include !== false).length;
     $('genSummary').textContent = `將產出:${cfg.type} 報表 · ${days} 天 × ${nCre} 個素材 × ${cfg.metrics.length} 個數據欄位` +
       (Object.values(cfg.sections).some(Boolean) ? ' · 含受眾彙總區塊' : '') +
@@ -2370,9 +2501,9 @@ function refresh() {
     // 藍圖顯示目前頁籤類型的版型
     if (activeTab) {
       const tc = ReportGen.getTypeConfig(activeTab, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric);
-      const mets = (typeMetricState[activeTab] || []).filter(m => m.include).map(m => m.key);
+      const mets = filterMetricsForType(typeMetricState[activeTab], activeTab).filter(m => m.include).map(m => m.key);
       const n = creativesForType(activeTab).length;
-      renderBlueprintSingle(mets, tc, n, activeTab, cfg.serviceFeeRate);
+      renderBlueprintSingle(mets, tc, n, activeTab, cfg.serviceFeeRate, cfg.cpaCalcFields, cfg.metricLabelOverrides);
     } else $('bpRow').innerHTML = '';
     const pages = usedPages();
     const parts = pages.map(({ page, type }) => {
@@ -2385,7 +2516,7 @@ function refresh() {
   }
 }
 
-function renderBlueprintSingle(metrics, tc, nCre, tabLabel, serviceFeeRate = 0) {
+function renderBlueprintSingle(metrics, tc, nCre, tabLabel, serviceFeeRate = 0, cpaCalcFields = null, metricLabelOverrides = null) {
   const sel = metrics.map(k => parsed.metricCols.find(m => m.key === k)).filter(Boolean);
   const hasRatio = !!tc.ratio.num && metrics.includes(tc.ratio.num) && (tc.ratio.den === '__fee' || metrics.includes(tc.ratio.den));
   const hasCost = parsed.hasSpend && metrics.includes(tc.cost.den);
@@ -2394,10 +2525,25 @@ function renderBlueprintSingle(metrics, tc, nCre, tabLabel, serviceFeeRate = 0) 
   const feeBlueprint = feeRate > 0
     ? `<span class="bp fee">廣告花費</span><span class="bp fee">外加${feeLabel}%服務費</span>`
     : `<span class="bp fee">廣告費用</span>`;
-  const group = () => sel.map(m => `<span class="bp">${esc(m.top)}${esc(m.bottom)}</span>`).join('') +
-    feeBlueprint +
-    (hasCost ? `<span class="bp calc">${esc(tc.cost.top)}</span>` : '') +
-    (hasRatio ? `<span class="bp calc">${esc(tc.ratio.top)}</span>` : '');
+  const ccf = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(cpaCalcFields || {}) };
+  const calcLabels = tc.unitLabel === 'CPA' ? [
+    ...(ccf.cpc && parsed.hasSpend && metrics.includes('clicks') ? ['CPC'] : []),
+    ...(ccf.ctr && metrics.includes('clicks') && metrics.includes('impressions') ? ['CTR'] : []),
+    ...(ccf.lcpc && parsed.hasSpend && metrics.includes('linkClicks') ? ['LCPC'] : []),
+    ...(ccf.lctr && metrics.includes('linkClicks') && metrics.includes('impressions') ? ['LCTR'] : []),
+    ...(hasCost ? ['CPA'] : []),
+    ...(hasRatio ? ['ROAS'] : []),
+  ] : [
+    ...(hasCost ? [tc.cost.top] : []),
+    ...(hasRatio ? [tc.ratio.top] : []),
+  ];
+  const labelMap = { addToCart: '', conversions: '', ...(metricLabelOverrides || {}) };
+  const metricDisplay = m => {
+    const custom = String(labelMap[m.key] || '').trim();
+    return custom ? custom.replace(/[\/｜|\n]/g, '') : `${m.top}${m.bottom}`;
+  };
+  const group = () => sel.map(m => `<span class="bp">${esc(metricDisplay(m))}</span>`).join('') +
+    feeBlueprint + calcLabels.map(x => `<span class="bp calc">${esc(x)}</span>`).join('');
   let html = (tabLabel ? `<span class="bp dim" style="background:var(--accent);color:var(--accent-ink)">${esc(tabLabel)} 分頁</span>` : '') +
     `<span class="bp dim">日期</span>` + group();
   for (let i = 0; i < nCre; i++)
@@ -2426,8 +2572,9 @@ $('btnGen').addEventListener('click', async () => {
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 10, savedAt: new Date().toISOString().slice(0, 10),
+      v: 14, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
+      reportFileName: cfg.reportFileName,
       mainType: document.querySelector('input[name=rtype]:checked').value,
       single: { name: $('fName').value.trim(), budget: $('fBudget').value, unitPrice: $('fUnit').value },
       startDate: cfg.startDate, endDate: cfg.endDate,
@@ -2435,6 +2582,8 @@ $('btnGen').addEventListener('click', async () => {
       byCreativeSections: cfg.byCreativeSections,
       cpvBasis: cfg.cpvBasis,
       conversionMetricState, conversionValueMetricState,
+      cpaCalcFields: cfg.cpaCalcFields,
+      metricLabelOverrides: cfg.metricLabelOverrides,
       conversionMetricRaw: metricRawName(conversionMetricState),
       conversionValueMetricRaw: metricRawName(conversionValueMetricState),
       campaignTypeState, campaignBudgetState,
@@ -2452,7 +2601,7 @@ $('btnGen').addEventListener('click', async () => {
 const firstPageName = cfg.composite
   ? ((cfg.pageConfigs && usedTypes().length && cfg.pageConfigs[usedTypes()[0]] && cfg.pageConfigs[usedTypes()[0]].name) || '')
   : '';
-const baseName = (cfg.name || firstPageName || '廣告報表');
+const baseName = (cfg.reportFileName || cfg.name || firstPageName || '廣告報表');
 
 const now = new Date();
 const mmdd =
