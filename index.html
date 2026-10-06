@@ -37,7 +37,7 @@ input[type=file]:hover{border-color:var(--slate)}
 .error{margin-top:12px;background:#FDEDEB;border:1px solid #EFC2BC;color:var(--red);border-radius:8px;padding:10px 14px;font-size:13.5px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
 .field label{display:block;font-size:13px;font-weight:700;color:var(--slate);margin-bottom:5px}
-.field input[type=text],.field input[type=number],.field input[type=date]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-family:inherit}
+.field input[type=text],.field input[type=number],.field input[type=date],.field select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-family:inherit;background:#fff}
 .field input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
 fieldset{border:none;margin-top:22px}
 legend{font-size:13px;font-weight:700;color:var(--slate);margin-bottom:8px}
@@ -118,6 +118,19 @@ legend{font-size:13px;font-weight:700;color:var(--slate);margin-bottom:8px}
 .advanced-box[open] summary{border-bottom:1px solid var(--line)}
 .advanced-body{padding:14px}
 .advanced-note{font-size:12.5px;color:var(--slate);margin-top:8px}
+.breakdown-upload-box{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:#FAFBFC}
+.breakdown-upload-title{font-size:13px;font-weight:700;color:var(--slate);margin-bottom:8px}
+.breakdown-upload-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.breakdown-slot{border:1px solid var(--line);border-radius:7px;background:#fff;padding:9px 10px}
+.breakdown-slot label{display:block;font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:6px}
+.breakdown-slot input[type=file]{padding:8px;border-width:1px;font-size:12px}
+.breakdown-slot .slot-status{font-size:11.5px;color:var(--slate);margin-top:5px;min-height:18px;overflow-wrap:anywhere}
+.breakdown-extra{margin-top:10px}
+.breakdown-loaded-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.breakdown-file-chip{display:inline-flex;align-items:center;gap:6px;background:#EFF3F0;border:1px solid #D4E0D8;color:#22543D;border-radius:6px;padding:4px 8px;font-size:12px}
+.breakdown-file-chip button{border:0;background:transparent;color:var(--slate);cursor:pointer;font-size:13px;line-height:1;padding:0 1px}
+.breakdown-file-chip button:hover{color:var(--red)}
+@media (max-width:760px){.breakdown-upload-grid{grid-template-columns:1fr}}
 .ck{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px;background:#FAFBFC}
 .ck input{accent-color:var(--ink);width:15px;height:15px}
 .ck .raw{color:var(--slate);font-size:11.5px;margin-left:auto}
@@ -179,13 +192,35 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         <label class="mode-opt"><input type="radio" name="wmode" value="update"><span>更新報表<small>舊報表 + 最新全量 Raw Data</small></span></label>
       </div>
       <div id="newModeBox">
-        <input type="file" id="fileInput" accept=".xlsx,.xls">
+        <div class="field"><label>① 主 Raw Data</label><input type="file" id="fileInput" accept=".xlsx,.xls"></div>
+        <div class="breakdown-upload-box">
+          <div class="breakdown-upload-title">② 進階 Breakdown Raw Data（選填）</div>
+          <div class="breakdown-upload-grid">
+            <div class="breakdown-slot"><label>地區 Breakdown</label><input type="file" id="newBreakdownRegion" data-breakdown-slot="region" accept=".xlsx,.xls"><div class="slot-status" data-slot-status="region"></div></div>
+            <div class="breakdown-slot"><label>裝置 Breakdown</label><input type="file" id="newBreakdownDevice" data-breakdown-slot="device" accept=".xlsx,.xls"><div class="slot-status" data-slot-status="device"></div></div>
+            <div class="breakdown-slot"><label>版位 Breakdown</label><input type="file" id="newBreakdownPlacement" data-breakdown-slot="placement" accept=".xlsx,.xls"><div class="slot-status" data-slot-status="placement"></div></div>
+          </div>
+          <div class="breakdown-extra field"><label>其他 Breakdown（可多檔）</label><input type="file" id="newBreakdownExtra" data-breakdown-slot="extra" accept=".xlsx,.xls" multiple></div>
+          <div class="advanced-note">地區／裝置／版位可各自上傳一份；若同一份檔案同時包含多個維度，可只放在其中一格。其他特殊 Breakdown 可使用「其他 Breakdown」追加。</div>
+          <div id="newBreakdownStatus"></div>
+        </div>
       </div>
       <div id="updateModeBox" style="display:none">
         <div class="field" style="margin-bottom:10px"><label>① 上週的舊報表(本工具產出)</label>
           <input type="file" id="oldReportInput" accept=".xlsx"></div>
-        <div class="field"><label>② 最新的全量 Raw Data</label>
+        <div class="field"><label>② 最新的全量主 Raw Data</label>
           <input type="file" id="rawUpdateInput" accept=".xlsx,.xls"></div>
+        <div class="breakdown-upload-box">
+          <div class="breakdown-upload-title">③ 最新 Breakdown Raw Data（依舊報表需求更新）</div>
+          <div class="breakdown-upload-grid">
+            <div class="breakdown-slot"><label>地區 Breakdown</label><input type="file" id="updateBreakdownRegion" data-breakdown-slot="region" accept=".xlsx,.xls"><div class="slot-status" data-slot-status="region"></div></div>
+            <div class="breakdown-slot"><label>裝置 Breakdown</label><input type="file" id="updateBreakdownDevice" data-breakdown-slot="device" accept=".xlsx,.xls"><div class="slot-status" data-slot-status="device"></div></div>
+            <div class="breakdown-slot"><label>版位 Breakdown</label><input type="file" id="updateBreakdownPlacement" data-breakdown-slot="placement" accept=".xlsx,.xls"><div class="slot-status" data-slot-status="placement"></div></div>
+          </div>
+          <div class="breakdown-extra field"><label>其他 Breakdown（可多檔）</label><input type="file" id="updateBreakdownExtra" data-breakdown-slot="extra" accept=".xlsx,.xls" multiple></div>
+          <div class="advanced-note" id="updateBreakdownHint">舊報表設定讀取後，會標示本次需要補上的 Breakdown 維度。</div>
+          <div id="updateBreakdownStatus"></div>
+        </div>
         <div id="restoreStatus"></div>
       </div>
       <div id="parseResult"></div>
@@ -252,9 +287,42 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       <fieldset id="campaignBudgetBox">
         <legend>各廣告活動共用預算</legend>
         <div class="warn" style="margin-top:0;margin-bottom:10px">
-          預算以「行銷活動」為單位手動設定；同一 Campaign 底下的多支廣告會共用同一筆預算。Excel 會在每支廣告上方顯示「廣告名稱／日期／預算」。
+          預算以「行銷活動」為單位手動設定；同一 Campaign 底下的多支廣告會共用同一筆預算。
         </div>
         <div id="campaignBudgetList"></div>
+      </fieldset>
+
+      <fieldset id="adHeaderFieldsBox">
+        <legend>各廣告上方顯示資訊（可選填）</legend>
+        <div class="check-grid">
+          <label class="ck"><input type="checkbox" id="adHeadCampaign">廣告活動名稱</label>
+          <label class="ck"><input type="checkbox" id="adHeadAd" checked>廣告名稱</label>
+          <label class="ck"><input type="checkbox" id="adHeadDate" checked>實際走期</label>
+          <label class="ck"><input type="checkbox" id="adHeadBudget" checked>預算</label>
+        </div>
+        <div class="advanced-note">可自由組合；若只需要顯示一個廣告活動名稱，只勾「廣告活動名稱」即可。廣告活動名稱取自 Raw Data「行銷活動」欄。</div>
+      </fieldset>
+
+      <fieldset id="serviceFeeBox">
+        <legend>廣告外加服務費（選填）</legend>
+        <div class="grid">
+          <div class="field">
+            <label for="serviceFeeSelect">外加服務費比例</label>
+            <select id="serviceFeeSelect">
+              <option value="0">不外加</option>
+              <option value="15">15%</option>
+              <option value="20">20%</option>
+              <option value="custom">自訂比例</option>
+            </select>
+          </div>
+          <div class="field" id="serviceFeeCustomBox" style="display:none">
+            <label for="serviceFeeCustom">自訂服務費（%）</label>
+            <input type="number" id="serviceFeeCustom" min="0" step="0.01" placeholder="例：18">
+          </div>
+        </div>
+        <div class="warn" id="serviceFeeHint" style="margin-top:10px">
+          選擇外加服務費後，Excel 會保留「廣告花費」並新增「外加服務費」欄；CPM／CPC／LCPC／CPV／CPA／ROAS 與總執行率皆統一使用外加後金額計算。
+        </div>
       </fieldset>
 
       <fieldset id="campaignMapBox" style="display:none">
@@ -305,9 +373,8 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         <summary>進階：By 素材交叉分析（少數案件選用）</summary>
         <div class="advanced-body">
           <div class="field" style="margin-bottom:12px">
-            <label>額外 Breakdown Raw Data（選填，可多檔）</label>
-            <input type="file" id="extraBreakdownInput" accept=".xlsx,.xls" multiple>
-            <div class="advanced-note">地區、裝置、版位若無法與主 Raw Data 同時匯出，可另外上傳；若同一份額外檔同時含裝置＋版位，只需上傳一次。</div>
+            <label>已載入的 Breakdown Raw Data</label>
+            <div class="advanced-note">Breakdown 檔案請於步驟 1 依「地區／裝置／版位／其他」上傳；建立新報表與更新報表皆使用相同的多檔結構。</div>
             <div id="extraBreakdownStatus"></div>
           </div>
           <div class="check-grid">
@@ -500,10 +567,13 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       const hit = headers.findIndex((h, i) => h && !used.has(i) && def.match(h));
       if (hit >= 0) { used.add(hit); metricCols.push({ ...def, colIdx: hit, rawName: headers[hit], known: true }); }
     }
-    // 同時存在兩種費用欄時，固定優先使用「花費含服務費」；沒有才 fallback 到「已花費（TWD）」/「已花費」
-    let spendCol = headers.findIndex(h => h && SPEND_SERVICE_MATCH(h));
-    if (spendCol < 0) spendCol = headers.findIndex(h => h && SPEND_BASE_MATCH(h));
+    // 同時存在兩種費用欄時，既有邏輯仍固定優先使用「花費含服務費」；
+    // 另保留 Meta 原生「已花費」欄，供直客案件選擇「廣告花費 + 外加服務費」時使用。
+    const serviceSpendCol = headers.findIndex(h => h && SPEND_SERVICE_MATCH(h));
+    const baseSpendCol = headers.findIndex(h => h && SPEND_BASE_MATCH(h));
+    let spendCol = serviceSpendCol >= 0 ? serviceSpendCol : baseSpendCol;
     const spendRawName = spendCol >= 0 ? headers[spendCol] : '';
+    const baseSpendRawName = baseSpendCol >= 0 ? headers[baseSpendCol] : '';
     const spendSource = spendCol < 0 ? 'none' : (SPEND_SERVICE_MATCH(spendRawName) ? 'service_included' : 'meta_spend');
     headers.forEach((h, i) => {
       if (!h || used.has(i) || i === spendCol) return;
@@ -529,6 +599,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         campaign: str(cCampaign >= 0 ? r[cCampaign] : ''),
         ad: str(r[cAd]),
         spend: num(spendCol >= 0 ? r[spendCol] : 0),
+        baseSpend: num(baseSpendCol >= 0 ? r[baseSpendCol] : (spendCol >= 0 ? r[spendCol] : 0)),
         values: {},
       };
       for (const m of metricCols) rec.values[m.key] = num(r[m.colIdx]);
@@ -537,7 +608,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     }
     const uniq = a => [...new Set(a.filter(Boolean))];
     return {
-      records, metricCols, hasSpend: spendCol >= 0, spendRawName, spendSource, skippedRows: skipped,
+      records, metricCols, hasSpend: spendCol >= 0, hasBaseSpend: baseSpendCol >= 0, spendRawName, baseSpendRawName, spendSource, skippedRows: skipped,
       ads: uniq(records.map(r => r.ad)),
       campaigns: uniq(records.map(r => r.campaign)),
       adsets: uniq(records.map(r => r.adset)),
@@ -665,6 +736,18 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const tc = getTypeConfig(config.type, config.cpvBasis, config.conversionMetric, config.conversionValueMetric);
     if (!tc) throw new Error('未知的報表類型: ' + config.type);
 
+    const externalFeeRate = Math.max(0, num(config.serviceFeeRate));
+    const useExternalFee = externalFeeRate > 0;
+    const feeFactor = 1 + externalFeeRate / 100;
+    if (useExternalFee && !parsed.hasBaseSpend)
+      throw new Error('已選擇外加服務費，但 Raw Data 找不到「已花費（TWD）」／「已花費」欄位，無法避免重複加計服務費');
+    const applyExternalFee = records => useExternalFee
+      ? (records || []).map(rec => ({ ...rec, spend: num(rec.baseSpend) * feeFactor }))
+      : (records || []);
+    const sheetRecords = applyExternalFee(parsed.records);
+    const baseSpendValue = spend => useExternalFee ? num(spend) / feeFactor : num(spend);
+    const feeRateLabel = Number.isInteger(externalFeeRate) ? String(externalFeeRate) : String(Math.round(externalFeeRate * 100) / 100);
+
     const selected = config.metrics
       .map(k => parsed.metricCols.find(m => m.key === k)).filter(Boolean);
     const selKeys = selected.map(m => m.key);
@@ -674,7 +757,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const creatives = config.creatives.filter(c => c.include !== false);
     // 受眾彙總只統計本分頁(本次 creatives)的素材;單一模式即全部素材
     const adWhitelist = creatives.map(c => c.raw);
-    const agg = aggregate(parsed.records, config.startDate, config.endDate, adWhitelist, config.campaignType, config.campaignTypeMap);
+    const agg = aggregate(sheetRecords, config.startDate, config.endDate, adWhitelist, config.campaignType, config.campaignTypeMap);
 
     // 總計值(供素材總計估算與自動欄寬)
     const creTotals = creatives.map(c => {
@@ -709,7 +792,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     /* --- 欄位佈局 --- */
     // 群組欄位順序:指標群 → 廣告費用 → [成本] → [比率]
     // 公式欄統一採「成本指標在前、比率在後」：CPM/CPC/LCPC/CPV → 點擊率/LCTR/VTR。
-    const groupKeys = [...selKeys, '__fee', ...(hasCost ? ['__cost'] : []), ...(hasRatio ? ['__ratio'] : [])];
+    const groupKeys = [...selKeys, ...(useExternalFee ? ['__baseFee'] : []), '__fee', ...(hasCost ? ['__cost'] : []), ...(hasRatio ? ['__ratio'] : [])];
     const groupW = groupKeys.length;
     const dStart = 2;
     // 素材區塊緊密橫向排列，不在每支素材前額外插空白欄。
@@ -747,7 +830,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       return rec.campaignType || detectTypeFromCampaign(rec.campaign);
     };
     const adInfo = creatives.map(cre => {
-      const rows = parsed.records.filter(rec =>
+      const rows = sheetRecords.filter(rec =>
         (rec.ad || '未命名素材') === cre.raw &&
         rec.date >= config.startDate && rec.date <= config.endDate &&
         (!config.campaignType || mappedTypeForInfo(rec) === config.campaignType)
@@ -757,13 +840,14 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       let budget = campaigns.reduce((sum, c) => sum + num((config.campaignBudgets || {})[c]), 0);
       // 向下相容／避免單一 Campaign 重複填預算：
       // 若目前分頁實際只有一個 Campaign，且沒有另填 Campaign 預算，沿用原本基本資訊的預算。
-      const pageCampaigns = [...new Set(parsed.records.filter(rec =>
+      const pageCampaigns = [...new Set(sheetRecords.filter(rec =>
         rec.date >= config.startDate && rec.date <= config.endDate &&
         (!config.campaignType || mappedTypeForInfo(rec) === config.campaignType)
       ).map(r => r.campaign).filter(Boolean))];
       if (!budget && campaigns.length === 1 && pageCampaigns.length === 1) budget = num(config.budget);
       const fmtShort = k => k ? `${+k.slice(5,7)}/${+k.slice(8)}` : '';
       return {
+        campaignText: campaigns.join(' / '),
         name: cre.label || cre.raw || '',
         dateText: dates.length ? `${fmtShort(dates[0])}-${fmtShort(dates[dates.length - 1])}` : '',
         budget,
@@ -771,17 +855,21 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       };
     });
     set(8, 1, { value: '每日總表', font: { size: 16 } });
+    const adHeaderFields = { campaign: false, ad: true, date: true, budget: true, ...(config.adHeaderFields || {}) };
     blocks.forEach((bStart, i) => {
       const info = adInfo[i];
       const blockEnd = bStart + groupW - 1;
       const reserveForImage = Math.min(3, Math.max(0, groupW - 1));
       const textEnd = Math.max(bStart, blockEnd - reserveForImage);
-      const infoRows = [
-        [6, info.name, undefined],
-        [7, info.dateText, undefined],
-        [8, info.budget || '', info.budget ? '"$"#,##0' : undefined],
-      ];
-      infoRows.forEach(([r, value, numFmt]) => {
+      const selectedInfo = [];
+      if (adHeaderFields.campaign) selectedInfo.push([info.campaignText, undefined]);
+      if (adHeaderFields.ad) selectedInfo.push([info.name, undefined]);
+      if (adHeaderFields.date) selectedInfo.push([info.dateText, undefined]);
+      if (adHeaderFields.budget) selectedInfo.push([info.budget || '', info.budget ? '"$"#,##0' : undefined]);
+      // 最多 4 行，固定使用第 5~8 列；選得越少越靠近正式表頭。
+      const startInfoRow = Math.max(5, 9 - selectedInfo.length);
+      selectedInfo.forEach(([value, numFmt], idx) => {
+        const r = startInfoRow + idx;
         set(r, bStart, { value, numFmt, font: { size: 11 }, h: 'left' });
         if (textEnd > bStart) ws.mergeCells(r, bStart, r, textEnd);
       });
@@ -789,22 +877,24 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 
     /* --- 表頭(第 9-10 列) --- */
     const headText = k => k === '__ratio' ? [tc.ratio.top, ''] : k === '__cost' ? [tc.cost.top, ''] :
-      k === '__fee' ? ['廣告費用', ''] : (m => [m.top, m.bottom])(selected.find(m => m.key === k));
+      k === '__baseFee' ? ['廣告', '花費'] :
+      k === '__fee' ? (useExternalFee ? ['外加', `${feeRateLabel}%服務費`] : ['廣告費用', '']) :
+      (m => [m.top, m.bottom])(selected.find(m => m.key === k));
     const headGroup = (start, dark, feeAsTwoLine) => {
       groupKeys.forEach((k, i) => {
         const c = start + i;
         let [top, bottom] = headText(k);
-        if (k === '__fee' && feeAsTwoLine) [top, bottom] = ['廣告', '費用'];
+        if (k === '__fee' && feeAsTwoLine && !useExternalFee) [top, bottom] = ['廣告', '費用'];
         const [l, r] = vSide(c);
         const style = dark ? { font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE) } : { font: { bold: true } };
         set(9, c, { value: top, ...style, border: bd('medium', 'thin', l, r), h: 'center' });
-        set(10, c, { value: bottom || undefined, ...style, border: bd('thin', 'thin', l, r), h: 'center' });
+        set(10, c, { value: bottom || undefined, ...style, border: bd('thin', 'medium', l, r), h: 'center' });
         if (!bottom) ws.mergeCells(9, c, 10, c);
       });
     };
     const [al, ar] = vSide(1);
     set(9, 1, { value: '日期', font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'thin', al, ar), h: 'center' });
-    set(10, 1, { fill: fill(DKBLUE), border: bd('thin', 'thin', al, ar) });
+    set(10, 1, { fill: fill(DKBLUE), border: bd('thin', 'medium', al, ar) });
     ws.mergeCells(9, 1, 10, 1);
     headGroup(dStart, true, false);
     blocks.forEach(b => headGroup(b, false, true));
@@ -831,6 +921,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, bStart)}${r}/${cellFor(tc.ratio.den, bStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, fill: greyFill, border });
           else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', bStart)}${r}/${cellFor(tc.cost.den, bStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, fill: greyFill, border });
           else if (!has) set(r, c, { fill: fill(GREY), border });
+          else if (k === '__baseFee') set(r, c, { value: Math.round(baseSpendValue(data.spend) * 100) / 100, numFmt: FMT.fee, border });
           else if (k === '__fee') set(r, c, { value: Math.round(data.spend * 100) / 100, numFmt: FMT.fee, border });
           else set(r, c, { value: data.values[k] || 0, numFmt: FMT.metric, border });
         });
@@ -841,7 +932,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, fill: greyFill, border });
         else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, fill: greyFill, border });
         else if (!dailyHasData) set(r, c, { fill: fill(GREY), border });
-        else set(r, c, { formula: blocks.map(b => `${cellFor(k, b)}${r}`).join('+') || '0', numFmt: k === '__fee' ? FMT.fee : FMT.metric, border });
+        else set(r, c, { formula: blocks.map(b => `${cellFor(k, b)}${r}`).join('+') || '0', numFmt: (k === '__fee' || k === '__baseFee') ? FMT.fee : FMT.metric, border });
       });
     });
 
@@ -856,7 +947,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       // Reach（每日觸及人數）為去重後的 non-additive metric，跨日不可直接 SUM。
       // 總計列保留版型與儲存格樣式，但不產生加總值。
       else if (k === 'reach') set(rTot, c, { value: null, numFmt: FMT.metric, ...style });
-      else set(rTot, c, { formula: `SUM(${colLetter(c)}${r0}:${colLetter(c)}${rEnd})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
+      else set(rTot, c, { formula: `SUM(${colLetter(c)}${r0}:${colLetter(c)}${rEnd})`, numFmt: (k === '__fee' || k === '__baseFee') ? FMT.fee : FMT.metric, ...style });
     });
     totGroup(dStart);
     blocks.forEach(b => totGroup(b));
@@ -891,13 +982,13 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       const gaStart = 3;
       const gaCell = key => colLetter(gaStart + groupKeys.indexOf(key));
       set(rs,1,{value:'性別',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','medium','thin'),h:'center'});
-      set(rs+1,1,{fill:fill(DKBLUE),border:bd('thin','thin','medium','thin')}); ws.mergeCells(rs,1,rs+1,1);
+      set(rs+1,1,{fill:fill(DKBLUE),border:bd('thin','medium','medium','thin')}); ws.mergeCells(rs,1,rs+1,1);
       set(rs,2,{value:'年齡',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','thin','thin'),h:'center'});
-      set(rs+1,2,{fill:fill(DKBLUE),border:bd('thin','thin','thin','thin')}); ws.mergeCells(rs,2,rs+1,2);
+      set(rs+1,2,{fill:fill(DKBLUE),border:bd('thin','medium','thin','thin')}); ws.mergeCells(rs,2,rs+1,2);
       groupKeys.forEach((k,j)=>{
         const c=gaStart+j,[top,bottom]=headText(k),style={font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE)};
         set(rs,c,{value:top,...style,border:bd('medium','thin',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin'),h:'center'});
-        set(rs+1,c,{value:bottom||undefined,...style,border:bd('thin','thin',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin'),h:'center'});
+        set(rs+1,c,{value:bottom||undefined,...style,border:bd('thin','medium',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin'),h:'center'});
         if(!bottom) ws.mergeCells(rs,c,rs+1,c);
       });
       let r=rs+2; const detailRows=[];
@@ -907,12 +998,13 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         for(const age of ages){
           detailRows.push(r);
           const d=amap.get(age)||{spend:0,values:{}};
-          const rowZero=Math.abs(Number(d.spend)||0)<1e-12 && groupKeys.filter(k=>!['__ratio','__cost','__fee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);
+          const rowZero=Math.abs(Number(d.spend)||0)<1e-12 && groupKeys.filter(k=>!['__ratio','__cost','__fee','__baseFee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);
           set(r,2,{value:age,fill:rowZero?fill(GREY):undefined,border:bd('thin','thin','thin','thin')});
           groupKeys.forEach((k,j)=>{
             const c=gaStart+j,common={border:bd('thin','thin',j===0?'medium':'thin',j===groupKeys.length-1?'medium':'thin'),fill:rowZero?fill(GREY):undefined};
             if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...common});
             else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...common});
+            else if(k==='__baseFee') set(r,c,{value:Math.round(baseSpendValue(d.spend)*100)/100,numFmt:FMT.fee,...common});
             else if(k==='__fee') set(r,c,{value:Math.round(d.spend*100)/100,numFmt:FMT.fee,...common});
             else set(r,c,{value:d.values[k]||0,numFmt:FMT.metric,...common});
           }); r++;
@@ -926,7 +1018,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});
           else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});
           else if(k==='reach') set(r,c,{value:null,numFmt:FMT.metric,...style});
-          else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:k==='__fee'?FMT.fee:FMT.metric,...style});
+          else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});
         }); r++;
       }
       set(r,1,{value:'總計',font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,1,r,2);
@@ -935,7 +1027,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         if(k==='__ratio') set(r,c,{formula:ifErr(`${gaCell(tc.ratio.num)}${r}/${gaCell(tc.ratio.den)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});
         else if(k==='__cost') set(r,c,{formula:ifErr(`${gaCell('__fee')}${r}/${gaCell(tc.cost.den)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});
         else if(k==='reach') set(r,c,{value:null,numFmt:FMT.metric,...style});
-        else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:k==='__fee'?FMT.fee:FMT.metric,...style});
+        else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});
       });
       rs=r+3;
     }
@@ -953,14 +1045,14 @@ const sectionDefs = [
       // 表頭兩列
       const [tl, tr] = audSide(1);
       set(rs, 1, { value: title, font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'thin', tl, tr), h: 'center' });
-      set(rs + 1, 1, { fill: fill(DKBLUE), border: bd('thin', 'thin', tl, tr) });
+      set(rs + 1, 1, { fill: fill(DKBLUE), border: bd('thin', 'medium', tl, tr) });
       ws.mergeCells(rs, 1, rs + 1, 1);
       groupKeys.forEach((k, j) => {
         const c = dStart + j, [l, rr] = audSide(c);
         const [top, bottom] = headText(k);
         const style = { font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE) };
         set(rs, c, { value: top, ...style, border: bd('medium', 'thin', l, rr), h: 'center' });
-        set(rs + 1, c, { value: bottom || undefined, ...style, border: bd('thin', 'thin', l, rr), h: 'center' });
+        set(rs + 1, c, { value: bottom || undefined, ...style, border: bd('thin', 'medium', l, rr), h: 'center' });
         if (!bottom) ws.mergeCells(rs, c, rs + 1, c);
       });
       // 資料列
@@ -972,6 +1064,7 @@ const sectionDefs = [
           const c = dStart + j, [l, rr] = audSide(c), border = bd('thin', 'thin', l, rr);
           if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, dStart)}${r}/${cellFor(tc.ratio.den, dStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, border });
           else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, border });
+          else if (k === '__baseFee') set(r, c, { value: Math.round(baseSpendValue(d.spend) * 100) / 100, numFmt: FMT.fee, border });
           else if (k === '__fee') set(r, c, { value: Math.round(d.spend * 100) / 100, numFmt: FMT.fee, border });
           else set(r, c, { value: d.values[k] || 0, numFmt: FMT.metric, border });
         });
@@ -986,7 +1079,7 @@ const sectionDefs = [
         else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', dStart)}${r}/${cellFor(tc.cost.den, dStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
         // Reach 不可由性別／年齡／興趣分群直接加總，避免重複觸及被誤當總觸及。
         else if (k === 'reach') set(r, c, { value: null, numFmt: FMT.metric, ...style });
-        else set(r, c, { formula: `SUM(${colLetter(c)}${rs + 2}:${colLetter(c)}${r - 1})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
+        else set(r, c, { formula: `SUM(${colLetter(c)}${rs + 2}:${colLetter(c)}${r - 1})`, numFmt: (k === '__fee' || k === '__baseFee') ? FMT.fee : FMT.metric, ...style });
       });
       rs = r + 3;
     }
@@ -1002,29 +1095,29 @@ const sectionDefs = [
     if (config.byCreativeSections && config.byCreativeSections.genderAge && blocks.length) {
       const genderOrder=['女性','男性','unknown','未知'], ageOrder=['18-24','25-34','35-44','45-54','55-64','65+','unknown','未知'];
       const sortFixed=(vals,fixed)=>[...vals].sort((a,b)=>{const ia=fixed.indexOf(a),ib=fixed.indexOf(b),ra=ia>=0?ia:9999,rb=ib>=0?ib:9999;return ra!==rb?ra-rb:String(a).localeCompare(String(b),'zh-Hant',{numeric:true});});
-      const byAdGA=aggregateByAdGenderAge(parsed.records,config.startDate,config.endDate,adWhitelist,config.campaignType,config.campaignTypeMap);
+      const byAdGA=aggregateByAdGenderAge(sheetRecords,config.startDate,config.endDate,adWhitelist,config.campaignType,config.campaignTypeMap);
       const gaMaps=creatives.map(c=>byAdGA.get(c.raw)||new Map()), genderSet=new Set(); gaMaps.forEach(gm=>gm.forEach((_,g)=>genderSet.add(g)));
       const genders=sortFixed(genderSet,genderOrder);
       if(genders.length){
         const hr=rs, genderCol=blocks[0]-2, ageCol=blocks[0]-1;
-        set(hr,genderCol,{value:'性別',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','medium','thin'),h:'center'}); set(hr+1,genderCol,{fill:fill(DKBLUE),border:bd('thin','thin','medium','thin')}); ws.mergeCells(hr,genderCol,hr+1,genderCol);
-        set(hr,ageCol,{value:'年齡',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','thin','thin'),h:'center'}); set(hr+1,ageCol,{fill:fill(DKBLUE),border:bd('thin','thin','thin','thin')}); ws.mergeCells(hr,ageCol,hr+1,ageCol);
-        creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,[top,bottom]=headText(k),style={font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE)};set(hr,c,{value:top,...style,border:bd('medium','thin',j===0?'medium':'thin',c===en?'medium':'thin'),h:'center'});set(hr+1,c,{value:bottom||undefined,...style,border:bd('thin','thin',j===0?'medium':'thin',c===en?'medium':'thin'),h:'center'});if(!bottom)ws.mergeCells(hr,c,hr+1,c);});});
+        set(hr,genderCol,{value:'性別',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','medium','thin'),h:'center'}); set(hr+1,genderCol,{fill:fill(DKBLUE),border:bd('thin','medium','medium','thin')}); ws.mergeCells(hr,genderCol,hr+1,genderCol);
+        set(hr,ageCol,{value:'年齡',font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','thin','thin','thin'),h:'center'}); set(hr+1,ageCol,{fill:fill(DKBLUE),border:bd('thin','medium','thin','thin')}); ws.mergeCells(hr,ageCol,hr+1,ageCol);
+        creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,[top,bottom]=headText(k),style={font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE)};set(hr,c,{value:top,...style,border:bd('medium','thin',j===0?'medium':'thin',c===en?'medium':'thin'),h:'center'});set(hr+1,c,{value:bottom||undefined,...style,border:bd('thin','medium',j===0?'medium':'thin',c===en?'medium':'thin'),h:'center'});if(!bottom)ws.mergeCells(hr,c,hr+1,c);});});
         let r=hr+2; const detailRows=[];
         for(const gender of genders){
           const ageSet=new Set(); gaMaps.forEach(gm=>{const am=gm.get(gender);if(am)am.forEach((_,a)=>ageSet.add(a));}); const ages=sortFixed(ageSet,ageOrder); if(!ages.length) continue; const gStart=r;
           for(const age of ages){
             detailRows.push(r);
-            const zeros=creatives.map((_,ci)=>{const d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}};return Math.abs(Number(d.spend)||0)<1e-12&&groupKeys.filter(k=>!['__ratio','__cost','__fee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);});
+            const zeros=creatives.map((_,ci)=>{const d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}};return Math.abs(Number(d.spend)||0)<1e-12&&groupKeys.filter(k=>!['__ratio','__cost','__fee','__baseFee'].includes(k)).every(k=>Math.abs(Number((d.values||{})[k])||0)<1e-12);});
             set(r,ageCol,{value:age,fill:zeros.every(Boolean)?fill(GREY):undefined,border:bd('thin','thin','thin','thin')});
-            creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1,d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}},zf=zeros[ci]?fill(GREY):undefined;groupKeys.forEach((k,j)=>{const c=st+j,common={border:bd('thin','thin',j===0?'medium':'thin',c===en?'medium':'thin'),fill:zf};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...common});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...common});else if(k==='__fee')set(r,c,{value:Math.round((d.spend||0)*100)/100,numFmt:FMT.fee,...common});else set(r,c,{value:(d.values&&d.values[k])||0,numFmt:FMT.metric,...common});});}); r++;
+            creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1,d=((gaMaps[ci].get(gender)||new Map()).get(age))||{spend:0,values:{}},zf=zeros[ci]?fill(GREY):undefined;groupKeys.forEach((k,j)=>{const c=st+j,common={border:bd('thin','thin',j===0?'medium':'thin',c===en?'medium':'thin'),fill:zf};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...common});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...common});else if(k==='__baseFee')set(r,c,{value:Math.round(baseSpendValue(d.spend||0)*100)/100,numFmt:FMT.fee,...common});else if(k==='__fee')set(r,c,{value:Math.round((d.spend||0)*100)/100,numFmt:FMT.fee,...common});else set(r,c,{value:(d.values&&d.values[k])||0,numFmt:FMT.metric,...common});});}); r++;
           }
           const gEnd=r-1; set(gStart,genderCol,{value:gender,border:bd('thin','thin','medium','thin'),h:'center'}); if(gEnd>gStart){ws.mergeCells(gStart,genderCol,gEnd,genderCol);set(gStart,genderCol,{value:gender,border:bd('thin','thin','medium','thin'),h:'center'});}
           set(r,genderCol,{value:`${gender}總計`,font:{bold:true,color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,genderCol,r,ageCol);
-          creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:k==='__fee'?FMT.fee:FMT.metric,...style});});}); r++;
+          creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{color:{argb:WHITE}},fill:fill(DKBLUE),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:`SUM(${colLetter(c)}${gStart}:${colLetter(c)}${gEnd})`,numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});});}); r++;
         }
         set(r,genderCol,{value:'總計',font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium','medium','thin')}); ws.mergeCells(r,genderCol,r,ageCol);
-        creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:k==='__fee'?FMT.fee:FMT.metric,...style});});}); rs=r+3;
+        creatives.forEach((_,ci)=>{const st=blocks[ci],en=st+groupW-1;groupKeys.forEach((k,j)=>{const c=st+j,style={font:{bold:true,color:{argb:RED}},fill:fill(YELLOW),border:bd('medium','medium',j===0?'medium':'thin',c===en?'medium':'thin')};if(k==='__ratio')set(r,c,{formula:ifErr(`${cellFor(tc.ratio.num,st)}${r}/${cellFor(tc.ratio.den,st)}${r}`),numFmt:tc.ratio.numFmt||FMT.ratio,...style});else if(k==='__cost')set(r,c,{formula:ifErr(`${cellFor('__fee',st)}${r}/${cellFor(tc.cost.den,st)}${r}${tc.cost.perMille?'*1000':''}`),numFmt:FMT.cost,...style});else if(k==='reach')set(r,c,{value:null,numFmt:FMT.metric,...style});else set(r,c,{formula:detailRows.length?`SUM(${detailRows.map(rr=>`${colLetter(c)}${rr}`).join(',')})`:'0',numFmt:(k==='__fee'||k==='__baseFee')?FMT.fee:FMT.metric,...style});});}); rs=r+3;
       }
     }
 
@@ -1032,7 +1125,7 @@ const sectionDefs = [
       ['gender', '性別'], ['age', '年齡'], ['interest', '受眾'],
       ['region', '地區'], ['device', '裝置'], ['placement', '版位'],
     ];
-    const extraRecords = config.extraBreakdownRecords || [];
+    const extraRecords = applyExternalFee(config.extraBreakdownRecords || []);
     const byDimOrder = {
       gender: ['女性','男性','unknown','未知'],
       age: ['18-24','25-34','35-44','45-54','55-64','65+','unknown','未知'],
@@ -1050,7 +1143,7 @@ const sectionDefs = [
 
     for (const [dim, title] of byCreDefs) {
       if (!config.byCreativeSections || !config.byCreativeSections[dim]) continue;
-      const sourceRecords = ['region','device','placement'].includes(dim) ? extraRecords : parsed.records;
+      const sourceRecords = ['region','device','placement'].includes(dim) ? extraRecords : sheetRecords;
       if (!sourceRecords.length || !blocks.length) continue;
       const byAd = aggregateByAdDimension(sourceRecords, config.startDate, config.endDate, adWhitelist, config.campaignType, config.campaignTypeMap, dim);
       const maps = creatives.map(c => byAd.get(c.raw) || new Map());
@@ -1065,7 +1158,7 @@ const sectionDefs = [
 
       // 左側只出現一次 Breakdown 名稱
       set(hr, labelCol, { value: title, font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'thin', 'medium', 'thin'), h: 'center' });
-      set(hr + 1, labelCol, { fill: fill(DKBLUE), border: bd('thin', 'thin', 'medium', 'thin') });
+      set(hr + 1, labelCol, { fill: fill(DKBLUE), border: bd('thin', 'medium', 'medium', 'thin') });
       ws.mergeCells(hr, labelCol, hr + 1, labelCol);
 
       // 每支素材的欄位表頭與上方每日總表一模一樣，且「廣告呈現次數」同欄對齊
@@ -1077,7 +1170,7 @@ const sectionDefs = [
           const [top, bottom] = headText(k);
           const style = { font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE) };
           set(hr, c, { value: top, ...style, border: bd('medium', 'thin', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin'), h: 'center' });
-          set(hr + 1, c, { value: bottom || undefined, ...style, border: bd('thin', 'thin', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin'), h: 'center' });
+          set(hr + 1, c, { value: bottom || undefined, ...style, border: bd('thin', 'medium', j === 0 ? 'medium' : 'thin', c === metricEnd ? 'medium' : 'thin'), h: 'center' });
           if (!bottom) ws.mergeCells(hr, c, hr + 1, c);
         });
       });
@@ -1112,6 +1205,7 @@ const sectionDefs = [
             const common = { border, fill: zeroFill };
             if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, metricStart)}${r}/${cellFor(tc.ratio.den, metricStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...common });
             else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', metricStart)}${r}/${cellFor(tc.cost.den, metricStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...common });
+            else if (k === '__baseFee') set(r, c, { value: Math.round(baseSpendValue(d.spend || 0) * 100) / 100, numFmt: FMT.fee, ...common });
             else if (k === '__fee') set(r, c, { value: Math.round((d.spend || 0) * 100) / 100, numFmt: FMT.fee, ...common });
             else set(r, c, { value: (d.values && d.values[k]) || 0, numFmt: FMT.metric, ...common });
           });
@@ -1133,7 +1227,7 @@ const sectionDefs = [
           if (k === '__ratio') set(r, c, { formula: ifErr(`${cellFor(tc.ratio.num, metricStart)}${r}/${cellFor(tc.ratio.den, metricStart)}${r}`), numFmt: tc.ratio.numFmt || FMT.ratio, ...style });
           else if (k === '__cost') set(r, c, { formula: ifErr(`${cellFor('__fee', metricStart)}${r}/${cellFor(tc.cost.den, metricStart)}${r}${tc.cost.perMille ? '*1000' : ''}`), numFmt: FMT.cost, ...style });
           else if (k === 'reach') set(r, c, { value: null, numFmt: FMT.metric, ...style });
-          else set(r, c, { formula: `SUM(${colLetter(c)}${hr + 2}:${colLetter(c)}${r - 1})`, numFmt: k === '__fee' ? FMT.fee : FMT.metric, ...style });
+          else set(r, c, { formula: `SUM(${colLetter(c)}${hr + 2}:${colLetter(c)}${r - 1})`, numFmt: (k === '__fee' || k === '__baseFee') ? FMT.fee : FMT.metric, ...style });
         });
       });
       rs = r + 3;
@@ -1153,6 +1247,7 @@ const sectionDefs = [
         const den = totals.values[tc.cost.den] || 0;
         noteW(c, numW(den ? totals.spend / den * (tc.cost.perMille ? 1000 : 1) : 0, 2));
       }
+      else if (k === '__baseFee') noteW(c, numW(baseSpendValue(totals.spend)));
       else if (k === '__fee') noteW(c, numW(totals.spend));
       else noteW(c, numW(totals.values[k] || 0));
     });
@@ -1247,6 +1342,7 @@ const sectionDefs = [
           campaignType: t,
           campaignTypeMap,
           campaignBudgets: config.campaignBudgets || {},
+          serviceFeeRate: config.serviceFeeRate || 0,
           composite: false,
           name: pageCfg.name != null ? pageCfg.name : config.name,
           budget: pageCfg.budget != null ? pageCfg.budget : config.budget,
@@ -1258,6 +1354,7 @@ const sectionDefs = [
           sections: config.sections,
           byCreativeSections: config.byCreativeSections,
           extraBreakdownRecords: config.extraBreakdownRecords,
+          adHeaderFields: config.adHeaderFields,
         };
         warnings = warnings.concat(buildSheet(wb, ExcelJS, parsed, sheetCfg, sheetName(t, usedNames)));
       }
@@ -1364,17 +1461,20 @@ function initFromParsed() {
   conversionMetricState = pickConversionMetric(false);
   conversionValueMetricState = ''; // ROAS 為選配；建立新報表時不自動啟用
   extraParsedList = [];
-  if ($('extraBreakdownInput')) $('extraBreakdownInput').value = '';
-  if ($('extraBreakdownStatus')) $('extraBreakdownStatus').innerHTML = '';
+  resetBreakdownUploads();
   for (const t of ALL_TYPES) {
     typeMetricState[t] = ReportGen.defaultMetricsForType(t, availKeys)
       .map(k => ({ key: k, include: defaultMetricInclude(k, t) }));
     pageInfoState[t] = { name: '', budget: '', unitPrice: '' };
   }
+  if ($('serviceFeeSelect')) $('serviceFeeSelect').value = '0';
+  if ($('serviceFeeCustom')) $('serviceFeeCustom').value = '';
+  if ($('serviceFeeCustomBox')) $('serviceFeeCustomBox').style.display = 'none';
 }
 function unlockAndRender() {
   renderParseResult();
   renderSettings();
+  updateServiceFeeUI();
   $('card2').classList.remove('locked');
   $('card3').classList.remove('locked');
   refresh();
@@ -1385,10 +1485,16 @@ $('fileInput').addEventListener('change', e => {
   const reader = new FileReader();
   reader.onload = ev => {
     try {
+      // 換主 Raw Data 時保留已選但尚未解析的 Breakdown 檔，重新對齊新主檔。
+      const keptPending = pendingBreakdownFiles;
+      const keptSlots = breakdownSlotFiles;
       parsed = ReportGen.parseRaw(readXlsxRows(ev.target.result));
       if (!parsed.records.length) throw new Error('沒有讀到任何有效資料列,請確認檔案內容');
       initFromParsed();
+      pendingBreakdownFiles = keptPending;
+      breakdownSlotFiles = keptSlots;
       unlockAndRender();
+      processPendingBreakdowns();
     } catch (err) {
       parsed = null;
       $('card2').classList.add('locked'); $('card3').classList.add('locked');
@@ -1399,7 +1505,14 @@ $('fileInput').addEventListener('change', e => {
 });
 
 
-// 額外 Breakdown 檔：只補充特殊維度，不改變主 Raw Data 的一般流程。
+// 額外 Breakdown 檔：地區／裝置／版位各自一格，另支援其他多檔；建立與更新模式共用同一套資料狀態。
+let breakdownSlotFiles = { region: null, device: null, placement: null, extra: [] };
+let pendingBreakdownFiles = { region: null, device: null, placement: null, extra: [] };
+
+function currentWorkMode() {
+  return (document.querySelector('input[name=wmode]:checked') || {}).value || 'new';
+}
+function slotLabel(slot) { return ({region:'地區',device:'裝置',placement:'版位',extra:'其他'})[slot] || slot; }
 function alignExtraParsed(ep) {
   if (!parsed) return ep;
   const mainByRaw = new Map(parsed.metricCols.map(m => [m.rawName, m.key]));
@@ -1415,25 +1528,98 @@ function alignExtraParsed(ep) {
   ep.metricCols = parsed.metricCols;
   return ep;
 }
-$('extraBreakdownInput').addEventListener('change', async e => {
-  const files = [...e.target.files];
+function breakdownDims(ep) {
+  const dims = [];
+  if ((ep.regions || []).length) dims.push('地區');
+  if ((ep.devices || []).length) dims.push('裝置');
+  if ((ep.placements || []).length) dims.push('版位');
+  return dims;
+}
+function rebuildExtraParsedList() {
   extraParsedList = [];
-  if (!files.length) { $('extraBreakdownStatus').innerHTML = ''; refresh(); return; }
-  const chips = [], errs = [];
-  for (const f of files) {
+  for (const slot of ['region','device','placement']) if (breakdownSlotFiles[slot]) extraParsedList.push(breakdownSlotFiles[slot]);
+  extraParsedList.push(...(breakdownSlotFiles.extra || []));
+}
+function renderBreakdownStatuses(errs = []) {
+  rebuildExtraParsedList();
+  const mode = currentWorkMode();
+  const target = mode === 'update' ? $('updateBreakdownStatus') : $('newBreakdownStatus');
+  for (const slot of ['region','device','placement']) {
+    document.querySelectorAll(`[data-slot-status="${slot}"]`).forEach(el => {
+      const ep = breakdownSlotFiles[slot];
+      el.textContent = ep ? `✓ ${ep._fileName}${breakdownDims(ep).length ? `（辨識：${breakdownDims(ep).join('／')}）` : ''}` : '';
+    });
+  }
+  const chips = extraParsedList.map(ep => {
+    const dims = breakdownDims(ep);
+    const name = ep._fileName || 'Breakdown Raw Data';
+    const slot = ep._slot || 'extra';
+    const key = encodeURIComponent(`${slot}::${name}`);
+    return `<span class="breakdown-file-chip">✓ ${esc(name)} <small>${esc(slotLabel(slot))}${dims.length ? `／${esc(dims.join('／'))}` : ''}</small><button type="button" data-remove-breakdown="${key}" title="移除">×</button></span>`;
+  });
+  const html = (chips.length ? `<div class="breakdown-loaded-list">${chips.join('')}</div>` : '<div class="advanced-note">尚未載入 Breakdown 檔案</div>') +
+    (errs.length ? `<div class="error">${errs.join('<br>')}</div>` : '');
+  if (target) target.innerHTML = html;
+  if ($('extraBreakdownStatus')) $('extraBreakdownStatus').innerHTML = html;
+}
+async function parseBreakdownFile(file, slot) {
+  const ep = alignExtraParsed(ReportGen.parseRaw(readXlsxRows(await file.arrayBuffer())));
+  if (!ep.records.length) throw new Error('沒有有效資料列');
+  ep._fileName = file.name;
+  ep._slot = slot;
+  return ep;
+}
+async function processPendingBreakdowns() {
+  if (!parsed) return;
+  const errs = [];
+  for (const slot of ['region','device','placement']) {
+    const f = pendingBreakdownFiles[slot];
+    if (!f) continue;
+    try { breakdownSlotFiles[slot] = await parseBreakdownFile(f, slot); }
+    catch (err) { errs.push(`${esc(slotLabel(slot))}：${esc(f.name)}：${esc(err.message)}`); }
+    pendingBreakdownFiles[slot] = null;
+  }
+  const extras = pendingBreakdownFiles.extra.splice(0);
+  for (const f of extras) {
     try {
-      const ep = alignExtraParsed(ReportGen.parseRaw(readXlsxRows(await f.arrayBuffer())));
-      if (!ep.records.length) throw new Error('沒有有效資料列');
-      extraParsedList.push(ep);
-      const dims = [];
-      if (ep.regions.length) dims.push('地區');
-      if (ep.devices.length) dims.push('裝置');
-      if (ep.placements.length) dims.push('版位');
-      chips.push(`<span class="chip">✓ ${esc(f.name)}${dims.length ? `（${dims.join('／')}）` : ''}</span>`);
+      const ep = await parseBreakdownFile(f, 'extra');
+      const sameIdx = breakdownSlotFiles.extra.findIndex(x => x._fileName === f.name);
+      if (sameIdx >= 0) breakdownSlotFiles.extra[sameIdx] = ep; else breakdownSlotFiles.extra.push(ep);
     } catch (err) { errs.push(`${esc(f.name)}：${esc(err.message)}`); }
   }
-  $('extraBreakdownStatus').innerHTML = (chips.length ? `<div class="chips">${chips.join('')}</div>` : '') +
-    (errs.length ? `<div class="error">${errs.join('<br>')}</div>` : '');
+  renderBreakdownStatuses(errs);
+  refresh();
+}
+function resetBreakdownUploads() {
+  breakdownSlotFiles = { region: null, device: null, placement: null, extra: [] };
+  pendingBreakdownFiles = { region: null, device: null, placement: null, extra: [] };
+  extraParsedList = [];
+  document.querySelectorAll('[data-breakdown-slot]').forEach(i => i.value = '');
+  document.querySelectorAll('[data-slot-status]').forEach(el => el.textContent = '');
+  if ($('newBreakdownStatus')) $('newBreakdownStatus').innerHTML = '';
+  if ($('updateBreakdownStatus')) $('updateBreakdownStatus').innerHTML = '';
+  if ($('extraBreakdownStatus')) $('extraBreakdownStatus').innerHTML = '';
+}
+
+document.querySelectorAll('[data-breakdown-slot]').forEach(input => input.addEventListener('change', async e => {
+  const slot = e.target.dataset.breakdownSlot;
+  const files = [...e.target.files];
+  if (!files.length) return;
+  if (slot === 'extra') pendingBreakdownFiles.extra.push(...files);
+  else pendingBreakdownFiles[slot] = files[0];
+  // input 可重選同一檔；實際檔案保存在 pending/state。
+  e.target.value = '';
+  if (parsed) await processPendingBreakdowns();
+  else renderBreakdownStatuses();
+}));
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-remove-breakdown]');
+  if (!btn) return;
+  const [slot, name] = decodeURIComponent(btn.dataset.removeBreakdown).split('::');
+  if (slot === 'extra') breakdownSlotFiles.extra = breakdownSlotFiles.extra.filter(x => x._fileName !== name);
+  else if (breakdownSlotFiles[slot] && breakdownSlotFiles[slot]._fileName === name) breakdownSlotFiles[slot] = null;
+  renderBreakdownStatuses();
   refresh();
 });
 
@@ -1442,7 +1628,9 @@ document.querySelectorAll('input[name=wmode]').forEach(r => r.addEventListener('
   const upd = document.querySelector('input[name=wmode]:checked').value === 'update';
   $('newModeBox').style.display = upd ? 'none' : '';
   $('updateModeBox').style.display = upd ? '' : 'none';
-  $('step1Title').textContent = upd ? '上傳舊報表與最新 Raw Data' : '上傳檔案';
+  $('step1Title').textContent = upd ? '上傳舊報表、最新主 Raw Data 與 Breakdown' : '上傳主 Raw Data 與 Breakdown';
+  resetBreakdownUploads();
+  renderBreakdownStatuses();
 }));
 
 /* ---------- 更新報表模式 ---------- */
@@ -1453,7 +1641,7 @@ $('oldReportInput').addEventListener('change', e => {
   const reader = new FileReader();
   reader.onload = async ev => {
     try {
-      pendingOldConfig = await ReportGen.readEmbeddedConfig(ExcelJS, ev.target.result);
+      pendingOldConfig = migrateEmbeddedConfig(await ReportGen.readEmbeddedConfig(ExcelJS, ev.target.result));
       if (!pendingOldConfig) throw new Error('這份報表沒有內嵌設定(不是本工具產出,或版本過舊),請改用「建立新報表」');
       $('restoreStatus').innerHTML = `<div class="chips"><span class="chip">✓ 舊報表設定已讀取(${esc(pendingOldConfig.savedAt || '')})</span></div>`;
       tryRestore();
@@ -1478,6 +1666,32 @@ $('rawUpdateInput').addEventListener('change', e => {
   };
   reader.readAsArrayBuffer(f);
 });
+// _config v10：保留 v9 Breakdown 設定，新增各廣告上方資訊顯示選項。
+function migrateEmbeddedConfig(rawCfg) {
+  const cfg = rawCfg ? { ...rawCfg } : null;
+  if (!cfg) return null;
+  const v = Number(cfg.v) || 1;
+  if (v < 8) {
+    cfg.serviceFeeMode = '0';
+    cfg.serviceFeeRate = 0;
+  }
+  if (v < 9) {
+    const b = cfg.byCreativeSections || {};
+    cfg.breakdownRequirements = { region: !!b.region, device: !!b.device, placement: !!b.placement };
+  }
+  if (v < 10) {
+    cfg.adHeaderFields = { campaign: false, ad: true, date: true, budget: true };
+    cfg.v = 10;
+  }
+  if (!cfg.adHeaderFields) cfg.adHeaderFields = { campaign: false, ad: true, date: true, budget: true };
+  if (cfg.serviceFeeRate == null) cfg.serviceFeeRate = 0;
+  if (cfg.serviceFeeMode == null) {
+    const r = Number(cfg.serviceFeeRate) || 0;
+    cfg.serviceFeeMode = r === 15 ? '15' : r === 20 ? '20' : (r > 0 ? 'custom' : '0');
+  }
+  return cfg;
+}
+
 // 兩個檔案都就緒後執行還原
 function tryRestore() {
   if (!pendingOldConfig || !pendingRawRows) return;
@@ -1493,13 +1707,28 @@ function tryRestore() {
     const br = document.querySelector(`input[name=cpvBasis][value=${restoredBasis}]`);
     if (br) br.checked = true;
     if (cfg.single) { $('fName').value = cfg.single.name || ''; $('fBudget').value = cfg.single.budget || ''; $('fUnit').value = cfg.single.unitPrice || ''; }
+    const restoredFeeRate = Math.max(0, Number(cfg.serviceFeeRate) || 0);
+    const restoredFeeMode = cfg.serviceFeeMode === 'custom' ? 'custom' : (restoredFeeRate === 15 ? '15' : restoredFeeRate === 20 ? '20' : '0');
+    $('serviceFeeSelect').value = restoredFeeMode;
+    $('serviceFeeCustom').value = restoredFeeMode === 'custom' ? restoredFeeRate : '';
+    updateServiceFeeUI();
     $('secInterest').checked = cfg.sections ? !!cfg.sections.interest : true;
     $('secGender').checked = cfg.sections ? !!cfg.sections.gender : true;
     $('secAge').checked = cfg.sections ? !!cfg.sections.age : true;
     $('secGenderAge').checked = cfg.sections ? !!cfg.sections.genderAge : false;
+    const ah = cfg.adHeaderFields || { campaign: false, ad: true, date: true, budget: true };
+    $('adHeadCampaign').checked = !!ah.campaign;
+    $('adHeadAd').checked = ah.ad !== false;
+    $('adHeadDate').checked = ah.date !== false;
+    $('adHeadBudget').checked = ah.budget !== false;
     const bcs = cfg.byCreativeSections || {};
     $('byCreGender').checked = !!bcs.gender; $('byCreAge').checked = !!bcs.age; $('byCreGenderAge').checked = !!bcs.genderAge; $('byCreInterest').checked = !!bcs.interest;
     $('byCreRegion').checked = !!bcs.region; $('byCreDevice').checked = !!bcs.device; $('byCrePlacement').checked = !!bcs.placement;
+    const brq = cfg.breakdownRequirements || { region: !!bcs.region, device: !!bcs.device, placement: !!bcs.placement };
+    const need = [['region','地區'],['device','裝置'],['placement','版位']].filter(([k]) => brq[k]).map(([,n]) => n);
+    if ($('updateBreakdownHint')) $('updateBreakdownHint').innerHTML = need.length
+      ? `舊報表已啟用：<b>${need.join('／')}</b>。請於上方各槽位補上本次最新 Breakdown Raw Data。`
+      : '舊報表未啟用地區／裝置／版位交叉分析；如本週新增需求仍可直接上傳。';
     // 走期:起=舊設定,迄=新資料最大日期(週更自然延伸)
     $('fStart').value = cfg.startDate || parsed.dateMin;
     $('fEnd').value = parsed.dateMax;
@@ -1545,6 +1774,7 @@ function tryRestore() {
     $('restoreStatus').innerHTML = ($('restoreStatus').innerHTML || '') + html;
     unlockAndRender();
     applyMode();
+    processPendingBreakdowns();
   } catch (err) {
     $('restoreStatus').innerHTML += `<div class="error">還原失敗:${esc(err.message)}</div>`;
   }
@@ -2044,6 +2274,31 @@ $('creativeList').addEventListener('input', e => {
 });
 document.addEventListener('input', e => { if (e.target.closest('#card2')) refresh(); });
 
+/* ---------- 外加服務費 ---------- */
+function getServiceFeeRate() {
+  const mode = $('serviceFeeSelect').value;
+  if (mode === 'custom') return Math.max(0, parseFloat($('serviceFeeCustom').value) || 0);
+  return Math.max(0, parseFloat(mode) || 0);
+}
+function getServiceFeeMode() { return $('serviceFeeSelect').value || '0'; }
+function updateServiceFeeUI() {
+  const custom = $('serviceFeeSelect').value === 'custom';
+  $('serviceFeeCustomBox').style.display = custom ? '' : 'none';
+  const rate = getServiceFeeRate();
+  if (rate > 0 && parsed && !parsed.hasBaseSpend) {
+    $('serviceFeeHint').innerHTML = '⚠ 已選擇外加服務費，但目前 Raw Data 找不到「已花費（TWD）」／「已花費」欄位。為避免對「花費含服務費」再次加價，產出時會要求補齊 Meta 原始花費欄。';
+    $('serviceFeeHint').className = 'error';
+    $('serviceFeeHint').style.marginTop = '10px';
+  } else {
+    const label = rate > 0 ? `目前將產出「廣告花費」＋「外加 ${Number.isInteger(rate) ? rate : Math.round(rate*100)/100}%服務費」，所有成本與 ROAS／總執行率使用外加後金額。` : '未外加服務費時，完全沿用既有費用欄位優先規則。';
+    $('serviceFeeHint').textContent = label;
+    $('serviceFeeHint').className = 'warn';
+    $('serviceFeeHint').style.marginTop = '10px';
+  }
+}
+$('serviceFeeSelect').addEventListener('change', () => { updateServiceFeeUI(); refresh(); });
+$('serviceFeeCustom').addEventListener('input', () => { updateServiceFeeUI(); refresh(); });
+
 /* ---------- 即時狀態 ---------- */
 function currentConfig() {
   const mainType = document.querySelector('input[name=rtype]:checked').value;
@@ -2055,6 +2310,12 @@ function currentConfig() {
     conversionValueMetric: conversionValueMetricState,
     campaignTypeMap: { ...campaignTypeState },
     campaignBudgets: Object.fromEntries(Object.entries(campaignBudgetState).map(([k,v]) => [k, parseFloat(v) || 0])),
+    serviceFeeMode: getServiceFeeMode(),
+    serviceFeeRate: getServiceFeeRate(),
+    adHeaderFields: {
+      campaign: $('adHeadCampaign').checked, ad: $('adHeadAd').checked,
+      date: $('adHeadDate').checked, budget: $('adHeadBudget').checked,
+    },
     sections: { interest: $('secInterest').checked, gender: $('secGender').checked, age: $('secAge').checked, genderAge: $('secGenderAge').checked },
     byCreativeSections: {
       gender: $('byCreGender').checked, age: $('byCreAge').checked, genderAge: $('byCreGenderAge').checked, interest: $('byCreInterest').checked,
@@ -2100,7 +2361,7 @@ function refresh() {
   if (!cfg.composite) {
     const tc = ReportGen.getTypeConfig(cfg.type, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric);
     $('unitLabel').textContent = tc.unitLabel + ' 單價';
-    renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length);
+    renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length, null, cfg.serviceFeeRate);
     const nCre = cfg.creatives.filter(c => c.include !== false).length;
     $('genSummary').textContent = `將產出:${cfg.type} 報表 · ${days} 天 × ${nCre} 個素材 × ${cfg.metrics.length} 個數據欄位` +
       (Object.values(cfg.sections).some(Boolean) ? ' · 含受眾彙總區塊' : '') +
@@ -2111,7 +2372,7 @@ function refresh() {
       const tc = ReportGen.getTypeConfig(activeTab, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric);
       const mets = (typeMetricState[activeTab] || []).filter(m => m.include).map(m => m.key);
       const n = creativesForType(activeTab).length;
-      renderBlueprintSingle(mets, tc, n, activeTab);
+      renderBlueprintSingle(mets, tc, n, activeTab, cfg.serviceFeeRate);
     } else $('bpRow').innerHTML = '';
     const pages = usedPages();
     const parts = pages.map(({ page, type }) => {
@@ -2124,12 +2385,17 @@ function refresh() {
   }
 }
 
-function renderBlueprintSingle(metrics, tc, nCre, tabLabel) {
+function renderBlueprintSingle(metrics, tc, nCre, tabLabel, serviceFeeRate = 0) {
   const sel = metrics.map(k => parsed.metricCols.find(m => m.key === k)).filter(Boolean);
   const hasRatio = !!tc.ratio.num && metrics.includes(tc.ratio.num) && (tc.ratio.den === '__fee' || metrics.includes(tc.ratio.den));
   const hasCost = parsed.hasSpend && metrics.includes(tc.cost.den);
+  const feeRate = Math.max(0, Number(serviceFeeRate) || 0);
+  const feeLabel = Number.isInteger(feeRate) ? feeRate : Math.round(feeRate * 100) / 100;
+  const feeBlueprint = feeRate > 0
+    ? `<span class="bp fee">廣告花費</span><span class="bp fee">外加${feeLabel}%服務費</span>`
+    : `<span class="bp fee">廣告費用</span>`;
   const group = () => sel.map(m => `<span class="bp">${esc(m.top)}${esc(m.bottom)}</span>`).join('') +
-    `<span class="bp fee">廣告費用</span>` +
+    feeBlueprint +
     (hasCost ? `<span class="bp calc">${esc(tc.cost.top)}</span>` : '') +
     (hasRatio ? `<span class="bp calc">${esc(tc.ratio.top)}</span>` : '');
   let html = (tabLabel ? `<span class="bp dim" style="background:var(--accent);color:var(--accent-ink)">${esc(tabLabel)} 分頁</span>` : '') +
@@ -2160,7 +2426,7 @@ $('btnGen').addEventListener('click', async () => {
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 7, savedAt: new Date().toISOString().slice(0, 10),
+      v: 10, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
       mainType: document.querySelector('input[name=rtype]:checked').value,
       single: { name: $('fName').value.trim(), budget: $('fBudget').value, unitPrice: $('fUnit').value },
@@ -2172,6 +2438,9 @@ $('btnGen').addEventListener('click', async () => {
       conversionMetricRaw: metricRawName(conversionMetricState),
       conversionValueMetricRaw: metricRawName(conversionValueMetricState),
       campaignTypeState, campaignBudgetState,
+      serviceFeeMode: cfg.serviceFeeMode, serviceFeeRate: cfg.serviceFeeRate,
+      adHeaderFields: cfg.adHeaderFields,
+      breakdownRequirements: { region: !!cfg.byCreativeSections.region, device: !!cfg.byCreativeSections.device, placement: !!cfg.byCreativeSections.placement },
       metricState, typeMetricState, pageInfoState,
       creatives: creativeState,
     };
