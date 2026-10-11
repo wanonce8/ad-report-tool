@@ -1788,10 +1788,17 @@ function tryRestore() {
     // 還原全域設定
     $('compositeChk').checked = !!cfg.composite;
     const restoredMainType = cfg.mainType === 'CPV15' ? 'CPV' : cfg.mainType;
-    if (restoredMainType) { const r = document.querySelector(`input[name=rtype][value=${restoredMainType}]`); if (r) r.checked = true; }
+    // 比對 DOM input.value，避免儲存值以數字開頭（如 3s、15s）造成無效 CSS selector。
+    // 不相容或已移除的舊設定值會保留既有預設，不中斷其他設定的還原。
+    const restoreRadioValue = (name, value) => {
+      const radio = Array.from(document.querySelectorAll('input[type="radio"]'))
+        .find(input => input.name === name && input.value === String(value));
+      if (radio) radio.checked = true;
+      return !!radio;
+    };
+    if (restoredMainType) restoreRadioValue('rtype', restoredMainType);
     const restoredBasis = cfg.mainType === 'CPV15' ? '15s' : (cfg.cpvBasis || '3s');
-    const br = document.querySelector(`input[name=cpvBasis][value=${restoredBasis}]`);
-    if (br) br.checked = true;
+    restoreRadioValue('cpvBasis', restoredBasis);
     if (cfg.single) { $('fName').value = cfg.single.name || ''; $('fBudget').value = cfg.single.budget || ''; $('fUnit').value = cfg.single.unitPrice || ''; }
     if ($('reportFileName')) $('reportFileName').value = cfg.reportFileName || '';
     const restoredFeeRate = Math.max(0, Number(cfg.serviceFeeRate) || 0);
