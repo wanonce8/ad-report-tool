@@ -899,7 +899,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       };
     });
     set(8, 1, { value: '每日總表', font: { size: 16 } });
-    const adHeaderFields = { campaign: false, ad: true, date: true, budget: true, ...(config.adHeaderFields || {}) };
+    const adHeaderFields = { campaign: false, ad: true, date: false, budget: false, ...(config.adHeaderFields || {}) };
     blocks.forEach((bStart, i) => {
       const info = adInfo[i];
       const blockEnd = bStart + groupW - 1;
@@ -1754,7 +1754,7 @@ $('rawUpdateInput').addEventListener('change', e => {
   };
   reader.readAsArrayBuffer(f);
 });
-// _config v14：延續既有設定；修正複合 CPA 自訂欄名/公式設定傳遞，並新增獨立報表檔案名稱。
+// _config v15：舊報表欄位設定保持原貌；缺少上方走期／預算設定時不自動開啟。
 function migrateEmbeddedConfig(rawCfg) {
   const cfg = rawCfg ? { ...rawCfg } : null;
   if (!cfg) return null;
@@ -1768,7 +1768,7 @@ function migrateEmbeddedConfig(rawCfg) {
     cfg.breakdownRequirements = { region: !!b.region, device: !!b.device, placement: !!b.placement };
   }
   if (v < 10) {
-    cfg.adHeaderFields = { campaign: false, ad: true, date: true, budget: true };
+    cfg.adHeaderFields = { campaign: false, ad: true, date: false, budget: false };
     cfg.v = 10;
   }
   if (v < 11) {
@@ -1795,7 +1795,12 @@ function migrateEmbeddedConfig(rawCfg) {
     cfg.reportFileName = cfg.reportFileName || (!cfg.composite && cfg.single ? (cfg.single.name || '') : '');
     cfg.v = 14;
   }
-  if (!cfg.adHeaderFields) cfg.adHeaderFields = { campaign: false, ad: true, date: true, budget: true };
+  if (v < 15) {
+    // 僅對缺少的欄位補安全預設；明確儲存的 true/false 全部保留。
+    cfg.adHeaderFields = { campaign: false, ad: true, date: false, budget: false, ...(cfg.adHeaderFields || {}) };
+    cfg.v = 15;
+  }
+  if (!cfg.adHeaderFields) cfg.adHeaderFields = { campaign: false, ad: true, date: false, budget: false };
   cfg.cpaCalcFields = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
   cfg.metricLabelOverrides = { addToCart: '', conversions: '', ...(cfg.metricLabelOverrides || {}) };
   if (cfg.serviceFeeRate == null) cfg.serviceFeeRate = 0;
@@ -1840,11 +1845,11 @@ function tryRestore() {
     $('secGender').checked = cfg.sections ? !!cfg.sections.gender : true;
     $('secAge').checked = cfg.sections ? !!cfg.sections.age : true;
     $('secGenderAge').checked = cfg.sections ? !!cfg.sections.genderAge : false;
-    const ah = cfg.adHeaderFields || { campaign: false, ad: true, date: true, budget: true };
+    const ah = cfg.adHeaderFields || { campaign: false, ad: true, date: false, budget: false };
     $('adHeadCampaign').checked = !!ah.campaign;
     $('adHeadAd').checked = ah.ad !== false;
-    $('adHeadDate').checked = ah.date !== false;
-    $('adHeadBudget').checked = ah.budget !== false;
+    $('adHeadDate').checked = ah.date === true;
+    $('adHeadBudget').checked = ah.budget === true;
     const bcs = cfg.byCreativeSections || {};
     $('byCreGender').checked = !!bcs.gender; $('byCreAge').checked = !!bcs.age; $('byCreGenderAge').checked = !!bcs.genderAge; $('byCreInterest').checked = !!bcs.interest;
     $('byCreRegion').checked = !!bcs.region; $('byCreDevice').checked = !!bcs.device; $('byCrePlacement').checked = !!bcs.placement;
@@ -2627,7 +2632,7 @@ $('btnGen').addEventListener('click', async () => {
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 14, savedAt: new Date().toISOString().slice(0, 10),
+      v: 15, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
       reportFileName: cfg.reportFileName,
       mainType: document.querySelector('input[name=rtype]:checked').value,
