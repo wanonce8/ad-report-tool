@@ -23,6 +23,15 @@ header h1::before{content:"";display:inline-block;width:10px;height:18px;backgro
 header .sub{color:#9FB0C0;font-size:13px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:22px;overflow:hidden;transition:opacity .25s}
 .card.locked{opacity:.45;pointer-events:none}
+/* 更新模式只讀：維持內容可檢視，所有設定互動暫停；解鎖鈕保留於標題列 */
+#card2.restore-readonly .card-body{pointer-events:none;opacity:.78;user-select:text}
+#card2.restore-readonly .card-body input,#card2.restore-readonly .card-body select{cursor:default}
+.restore-actions{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.restore-state{font-size:12px;color:#22543D;font-weight:700}
+.restore-toggle{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
+.restore-toggle:hover{background:var(--paper)}
+#card2.restore-readonly .card-body input:focus{outline:none}
+
 .card-head{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line)}
 .step-no{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--accent);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
 .card-head h2{font-size:16px;font-weight:700}
@@ -229,7 +238,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 
   <!-- 步驟 2 -->
   <section class="card locked" id="card2">
-    <div class="card-head"><div class="step-no">2</div><h2>報表設定</h2></div>
+    <div class="card-head"><div class="step-no">2</div><h2>報表設定</h2><div class="restore-actions" id="restoreActions" style="display:none"><span class="restore-state" id="restoreLockState"></span><button type="button" class="restore-toggle" id="restoreLockToggle"></button></div></div>
     <div class="card-body">
 
       <fieldset>
@@ -1531,6 +1540,21 @@ function initFromParsed() {
   if ($('serviceFeeCustom')) $('serviceFeeCustom').value = '';
   if ($('serviceFeeCustomBox')) $('serviceFeeCustomBox').style.display = 'none';
 }
+// 更新模式：預設唯讀，但還原異常時維持可編輯以便修正。
+let updateRestoreReady = false;
+let updateSettingsReadonly = false;
+function setUpdateSettingsReadonly(readonly, reason = '') {
+  const isUpdate = currentWorkMode() === 'update';
+  updateSettingsReadonly = !!(isUpdate && updateRestoreReady && readonly);
+  $('card2').classList.toggle('restore-readonly', updateSettingsReadonly);
+  $('restoreActions').style.display = isUpdate && updateRestoreReady ? 'flex' : 'none';
+  $('restoreLockState').textContent = reason || (updateSettingsReadonly ? '✓ 舊設定已還原・唯讀' : '設定可編輯');
+  $('restoreLockToggle').textContent = updateSettingsReadonly ? '🔓 解鎖並修改設定' : '🔒 重新鎖定設定';
+  $('restoreLockToggle').setAttribute('aria-pressed', String(!updateSettingsReadonly));
+}
+$('restoreLockToggle').addEventListener('click', () => {
+  setUpdateSettingsReadonly(!updateSettingsReadonly);
+});
 function unlockAndRender() {
   renderParseResult();
   renderSettings();
@@ -1550,6 +1574,8 @@ $('fileInput').addEventListener('change', e => {
       const keptSlots = breakdownSlotFiles;
       parsed = ReportGen.parseRaw(readXlsxRows(ev.target.result));
       if (!parsed.records.length) throw new Error('沒有讀到任何有效資料列,請確認檔案內容');
+      // 新建報表仍以本次主 Raw Data 起迄日期初始化，避免沿用上一次操作的日期。
+      $('fStart').value = parsed.dateMin; $('fEnd').value = parsed.dateMax;
       initFromParsed();
       pendingBreakdownFiles = keptPending;
       breakdownSlotFiles = keptSlots;
@@ -1691,6 +1717,8 @@ document.querySelectorAll('input[name=wmode]').forEach(r => r.addEventListener('
   $('step1Title').textContent = upd ? '上傳舊報表、最新主 Raw Data 與 Breakdown' : '上傳主 Raw Data 與 Breakdown';
   resetBreakdownUploads();
   renderBreakdownStatuses();
+  if (!upd) { updateRestoreReady = false; setUpdateSettingsReadonly(false); }
+  else { setUpdateSettingsReadonly(updateSettingsReadonly); }
 }));
 
 /* ---------- 更新報表模式 ---------- */
@@ -1780,6 +1808,8 @@ function migrateEmbeddedConfig(rawCfg) {
 
 // 兩個檔案都就緒後執行還原
 function tryRestore() {
+  updateRestoreReady = false;
+  setUpdateSettingsReadonly(false);
   if (!pendingOldConfig || !pendingRawRows) return;
   try {
     parsed = ReportGen.parseRaw(pendingRawRows);
@@ -1872,12 +1902,27 @@ function tryRestore() {
     if (missing.length) html += `<div class="warn"><b>⚠ 下列素材在新 Raw Data 中找不到,已略過:</b>${missing.map(esc).join('、')}<br>請確認 Raw Data 匯出範圍是否涵蓋完整活動期間。</div>`;
     if (newOnes.length) html += `<div class="warn">新 Raw Data 有 ${newOnes.length} 個新素材(${newOnes.map(esc).join('、')}),已加到素材清單尾端,請補設定與上刊圖。</div>`;
     const nImg = creativeState.filter(c => c.image).length;
-    html += `<div class="chips"><span class="chip">✓ 設定已還原</span><span class="chip">上刊圖 <b>${nImg}</b> 張已還原</span></div>`;
-    $('restoreStatus').innerHTML = ($('restoreStatus').innerHTML || '') + html;
+    const lostMetrics = (cfg.metricState || []).filter(m => m.include !== false && !availKeys.includes(m.key)).map(m => m.key);
+    const lostTypeMetrics = Object.entries(cfg.typeMetricState || {}).flatMap(([type, metrics]) =>
+      (Array.isArray(metrics) ? metrics : []).filter(m => m.include !== false && !availKeys.includes(m.key)).map(m => `${type}:${m.key}`));
+    const invalidMainType = !!restoredMainType && !ALL_TYPES.includes(restoredMainType);
+    const missingSingle = !cfg.composite && !cfg.single;
+    const needReview = !!(missing.length || newOnes.length || lostMetrics.length || lostTypeMetrics.length || invalidMainType || missingSingle);
+    if (lostMetrics.length || lostTypeMetrics.length) html += `<div class="warn">⚠ 部分舊報表欄位在最新 Raw Data 中不存在：${esc([...new Set([...lostMetrics, ...lostTypeMetrics])].join('、'))}。請確認欄位設定。</div>`;
+    if (invalidMainType || missingSingle) html += `<div class="warn">⚠ 舊報表有部分必要設定無法辨識，請手動確認。</div>`;
+    // 先完成 UI 渲染及確認核心欄位，再回報成功。
     unlockAndRender();
     applyMode();
+    if ($('fStart').value !== (cfg.startDate || parsed.dateMin) || $('fEnd').value !== parsed.dateMax)
+      throw new Error('走期未正確帶回，請檢查還原流程');
+    updateRestoreReady = true;
+    setUpdateSettingsReadonly(!needReview, needReview ? '⚠ 部分設定需確認・可編輯' : '✓ 舊設定已還原・唯讀');
+    html += `<div class="chips"><span class="chip">${needReview ? '⚠ 步驟 2 設定部分還原，請確認' : '✓ 步驟 2 設定已自動還原並鎖定'}</span><span class="chip">上刊圖 <b>${nImg}</b> 張已還原</span></div>`;
+    $('restoreStatus').innerHTML = `<div class="chips"><span class="chip">✓ 舊報表設定已讀取(${esc(cfg.savedAt || '')})</span></div>` + html;
     processPendingBreakdowns();
   } catch (err) {
+    updateRestoreReady = false;
+    setUpdateSettingsReadonly(false);
     $('restoreStatus').innerHTML += `<div class="error">還原失敗:${esc(err.message)}</div>`;
   }
 }
@@ -1969,7 +2014,10 @@ function renderParseResult() {
 function isComposite() { return $('compositeChk').checked; }
 
 function renderSettings() {
-  $('fStart').value = parsed.dateMin; $('fEnd').value = parsed.dateMax;
+  // 更新報表：保留 tryRestore 已帶入的舊走期起日與最新走期迄日。
+  // 建立新報表：日期尚未指定時才使用 Raw Data 日期。
+  if (!$('fStart').value) $('fStart').value = parsed.dateMin;
+  if (!$('fEnd').value) $('fEnd').value = parsed.dateMax;
   $('fStart').min = $('fEnd').min = parsed.dateMin;
   renderCampaignBudgets();
   applyMode();
