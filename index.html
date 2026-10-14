@@ -185,7 +185,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <body>
 <header>
   <div class="wrap">
-    <h1>廣告成效報表產生器</h1>
+    <h1>廣告成效報表產生器</h1><span class="sub">v16 · CPA 預設 LCPC／LCTR · 購買轉換價值自動 ROAS</span>
     <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA（ROAS 選配）</span>
   </div>
 </header>
@@ -264,8 +264,8 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
             <select id="conversionValueMetricSelect" class="creative-type" aria-label="ROAS 轉換價值欄位"></select>
           </label>
           <span class="basis-title">公式欄位（選填）</span>
-          <label><input type="checkbox" id="cpaCalcCpc" checked>CPC</label>
-          <label><input type="checkbox" id="cpaCalcCtr" checked>CTR</label>
+          <label><input type="checkbox" id="cpaCalcCpc">CPC</label>
+          <label><input type="checkbox" id="cpaCalcCtr">CTR</label>
           <label><input type="checkbox" id="cpaCalcLcpc" checked>LCPC</label>
           <label><input type="checkbox" id="cpaCalcLctr" checked>LCTR</label>
           <span class="basis-title">欄位名稱（選填）</span>
@@ -275,7 +275,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           <label style="display:flex;align-items:center;gap:6px">轉換
             <input type="text" id="labelConversions" placeholder="例：捐款/完成" style="width:125px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px">
           </label>
-          <span class="batch-note">欄位名稱留白時沿用預設；可用「/」分成上下兩行，例如「立即/捐款」。CPA 固定產出；CTR／CPC／LCTR／LCPC 可自由勾選，公式欄一律放在最後。ROAS 仍依「轉換價值」是否指定決定是否產出。</span>
+          <span class="batch-note">欄位名稱留白時沿用預設；可用「/」分成上下兩行，例如「立即/捐款」。CPA 固定產出；預設勾選 LCPC／LCTR，CTR／CPC 可自行加選，公式欄一律放在最後。ROAS 仍依「轉換價值」是否指定決定是否產出。</span>
         </div>
         <label class="composite-toggle"><input type="checkbox" id="compositeChk">
           <span><b>複合目標報表</b>：依行銷活動名稱自動辨識類型,各類型分別產出不同分頁</span></label>
@@ -823,7 +823,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     // 群組欄位順序：原始指標 → 廣告費用 → 所有計算公式欄。
     // CPA 報表額外補齊 CTR / CPC / LCTR / LCPC / CPA / ROAS，且公式欄一律集中在最後面。
     // 其餘報表維持既有「成本指標 → 比率指標」邏輯，不改動原本格式。
-    const cpaCalcFields = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(config.cpaCalcFields || {}) };
+    const cpaCalcFields = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(config.cpaCalcFields || {}) };
     const calcKeys = config.type === 'CPA' ? [
       ...(cpaCalcFields.cpc && parsed.hasSpend && selKeys.includes('clicks') ? ['__cpc'] : []),
       ...(cpaCalcFields.ctr && selKeys.includes('clicks') && selKeys.includes('impressions') ? ['__ctr'] : []),
@@ -1524,7 +1524,13 @@ function initFromParsed() {
     campaignBudgetState[c] = '';
   }
   conversionMetricState = pickConversionMetric(false);
-  conversionValueMetricState = ''; // ROAS 為選配；建立新報表時不自動啟用
+  conversionValueMetricState = defaultPurchaseValueMetric(); // 有購買轉換價值才預設啟用 ROAS
+  // 每次建立新報表、載入新 Raw Data 時都要重設實際 DOM 勾選狀態。
+  // 僅修改 HTML checked 屬性無法覆蓋先前使用者操作或瀏覽器記住的狀態。
+  $('cpaCalcCpc').checked = false;
+  $('cpaCalcCtr').checked = false;
+  $('cpaCalcLcpc').checked = true;
+  $('cpaCalcLctr').checked = true;
   if ($('labelAddToCart')) $('labelAddToCart').value = '';
   if ($('labelConversions')) $('labelConversions').value = '';
   if ($('reportFileName')) $('reportFileName').value = '';
@@ -1801,7 +1807,7 @@ function migrateEmbeddedConfig(rawCfg) {
     cfg.v = 15;
   }
   if (!cfg.adHeaderFields) cfg.adHeaderFields = { campaign: false, ad: true, date: false, budget: false };
-  cfg.cpaCalcFields = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
+  cfg.cpaCalcFields = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
   cfg.metricLabelOverrides = { addToCart: '', conversions: '', ...(cfg.metricLabelOverrides || {}) };
   if (cfg.serviceFeeRate == null) cfg.serviceFeeRate = 0;
   if (cfg.serviceFeeMode == null) {
@@ -1870,8 +1876,12 @@ function tryRestore() {
     for (const t of ALL_TYPES)
       typeMetricState[t] = reconcileMetrics((cfg.typeMetricState || {})[t], availKeys, t);
     conversionMetricState = resolveSavedMetric(cfg.conversionMetricState, cfg.conversionMetricRaw, false);
-    conversionValueMetricState = resolveSavedMetric(cfg.conversionValueMetricState, cfg.conversionValueMetricRaw, true);
-    const ccf = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
+    // 舊報表已明確儲存「不計算 ROAS」時不覆蓋；缺少設定才依購買轉換價值自動帶入。
+    const hasSavedRoasChoice = Object.prototype.hasOwnProperty.call(cfg, 'conversionValueMetricState');
+    conversionValueMetricState = hasSavedRoasChoice
+      ? (cfg.conversionValueMetricState ? resolveSavedMetric(cfg.conversionValueMetricState, cfg.conversionValueMetricRaw, true) : '')
+      : defaultPurchaseValueMetric();
+    const ccf = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
     $('cpaCalcCtr').checked = !!ccf.ctr;
     $('cpaCalcCpc').checked = !!ccf.cpc;
     $('cpaCalcLctr').checked = !!ccf.lctr;
@@ -1962,6 +1972,17 @@ function pickConversionMetric(wantValue) {
   };
   const ranked = parsed.metricCols.map(m => [m, score(m)]).filter(x => x[1] > 0).sort((a,b) => b[1]-a[1]);
   return ranked.length ? ranked[0][0].key : '';
+}
+// 僅當 Raw Data 確實具有購買轉換價值欄位時，新建報表才預設啟用 ROAS。
+function defaultPurchaseValueMetric() {
+  if (!parsed || !parsed.metricCols) return '';
+  const purchaseValue = parsed.metricCols.find(m => {
+    const name = String(m.rawName || '').replace(/\s+/g, '');
+    return /(?:購買|purchase)/i.test(name) &&
+      /(?:價值|value)/i.test(name) &&
+      !/(?:成本|cost)/i.test(name);
+  });
+  return purchaseValue ? purchaseValue.key : '';
 }
 function resolveSavedMetric(savedKey, savedRaw, wantValue) {
   if (!parsed || !parsed.metricCols) return '';
@@ -2585,7 +2606,7 @@ function renderBlueprintSingle(metrics, tc, nCre, tabLabel, serviceFeeRate = 0, 
   const feeBlueprint = feeRate > 0
     ? `<span class="bp fee">廣告花費</span><span class="bp fee">外加${feeLabel}%服務費</span>`
     : `<span class="bp fee">廣告費用</span>`;
-  const ccf = { ctr: true, cpc: true, lctr: true, lcpc: true, ...(cpaCalcFields || {}) };
+  const ccf = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(cpaCalcFields || {}) };
   const calcLabels = tc.unitLabel === 'CPA' ? [
     ...(ccf.cpc && parsed.hasSpend && metrics.includes('clicks') ? ['CPC'] : []),
     ...(ccf.ctr && metrics.includes('clicks') && metrics.includes('impressions') ? ['CTR'] : []),
