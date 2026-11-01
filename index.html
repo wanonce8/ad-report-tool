@@ -185,8 +185,8 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <body>
 <header>
   <div class="wrap">
-    <h1>廣告成效報表產生器</h1><span class="sub">v16 · CPA 預設 LCPC／LCTR · 購買轉換價值自動 ROAS</span>
-    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA（ROAS 選配）</span>
+    <h1>廣告成效報表產生器</h1><span class="sub">v17.1 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
+    <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / 訊息廣告（ROAS 選配）</span>
   </div>
 </header>
 
@@ -249,6 +249,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
           <label class="type-opt"><input type="radio" name="rtype" value="LCPC"><span>LCPC<small>費用 ÷ 連結點擊</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="CPV"><span>CPV<small>3秒 / 15秒觀看可選</small></span></label>
           <label class="type-opt"><input type="radio" name="rtype" value="CPA"><span>CPA / 轉換<small>CPA 必備 · ROAS 選配</small></span></label>
+           <label class="type-opt"><input type="radio" name="rtype" value="MESSAGE"><span>訊息廣告<small>CPA/訊息 · CPC · CTR</small></span></label>
         </div>
         <div class="cpv-basis" id="cpvBasisBox" style="display:none">
           <span class="basis-title">CPV 觀看口徑</span>
@@ -276,6 +277,13 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
             <input type="text" id="labelConversions" placeholder="例：捐款/完成" style="width:125px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px">
           </label>
           <span class="batch-note">欄位名稱留白時沿用預設；可用「/」分成上下兩行，例如「立即/捐款」。CPA 固定產出；預設勾選 LCPC／LCTR，CTR／CPC 可自行加選，公式欄一律放在最後。ROAS 仍依「轉換價值」是否指定決定是否產出。</span>
+        </div>
+        <div class="cpv-basis" id="messageBasisBox" style="display:none">
+          <span class="basis-title">訊息廣告計算口徑</span>
+          <label style="display:flex;align-items:center;gap:6px">CPA/訊息的分母
+            <select id="messageMetricSelect" class="creative-type" aria-label="offsite 新的訊息對話來源欄位"></select>
+          </label>
+          <span class="batch-note">固定抓取 Raw Data「offsite 新的訊息對話」，報表顯示「訊息對話次數」；CPA/訊息＝費用 ÷ 訊息對話次數，CPC／CTR 使用全部點擊。未提供此欄不會用「成果」等欄位替代。</span>
         </div>
         <label class="composite-toggle"><input type="checkbox" id="compositeChk">
           <span><b>複合目標報表</b>：依行銷活動名稱自動辨識類型,各類型分別產出不同分頁</span></label>
@@ -447,12 +455,21 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   else root.ReportGen = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
 
+  // 訊息廣告唯一有效的轉換來源：offsite 新的訊息對話。
+  // 正規化 Meta 匯出檔可能出現的空白、全半形與分隔符號，但不把「成果」或其他訊息事件當作分母。
+  const isOffsiteNewMessage = name => {
+    const n = String(name || '').normalize('NFKC').replace(/[\s_\-:：·.／（）()\[\]]+/g, '').toLowerCase();
+    return n.includes('offsite') && /(?:新(?:的)?訊息對話|newmessagingconversations?)/i.test(n) &&
+      !/(?:成本|費用|cost|價值|value|每次|單次|率|rate)/i.test(n);
+  };
+
   const METRIC_DEFS = [
   { key: 'impressions', top: '廣告', bottom: '呈現次數', match: n => n.includes('曝光次數') },
   { key: 'reach',       top: '每日', bottom: '觸及人數', match: n => n.includes('觸及人數') },
   { key: 'clicks',      top: '廣告', bottom: '點擊次數', match: n => n.includes('點擊次數') && n.includes('全部') },
   { key: 'linkClicks',  top: '連結', bottom: '點擊次數', match: n => n.includes('連結點擊次數') },
   { key: 'addToCart', top: '購物車', bottom: '新增品項次數', match: n => /(購物車.*新增.*品項.*次數|加入購物車|add.?to.?cart)/i.test(n) && !/(價值|value|成本|cost|率|rate)/i.test(n) },
+  { key: 'messages', top: '訊息對話次數', bottom: '', match: isOffsiteNewMessage },
   { key: 'conversions', top: '轉換', bottom: '次數', match: n => /(購買次數|網站購買|購買$|轉換次數|成果$|潛在顧客|名單|lead|完成註冊|註冊|purchase|conversion)/i.test(n) && !/(價值|value|成本|cost|率|rate|購物車|cart)/i.test(n) },
   { key: 'conversionValue', top: '購買', bottom: '轉換值', match: n => /(購買|轉換|purchase|conversion).*(價值|轉換值|value)|營收|收入/i.test(n) && !/(成本|cost)/i.test(n) },
   { key: 'pageLikes',   top: '加入', bottom: '粉絲人數', match: n => n.includes('粉絲專頁的讚') },
@@ -509,6 +526,14 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     cost: { top: 'CPV', den: 'video3s' }
   },
 
+  MESSAGE: {
+    unitLabel: 'CPA/訊息',
+    planLabel: '預計訊息對話次數',
+    planExpr: 'B3/B5',
+    ratio: { top: 'CTR', num: 'clicks', den: 'impressions' },
+    cost: { top: 'CPA/訊息', den: 'messages' }
+  },
+
   CPA: {
     unitLabel: 'CPA',
     planLabel: '預計轉換次數',
@@ -519,9 +544,13 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 };
 
   // CPV 是同一種報表，僅切換觀看口徑（3秒 / 15秒 ThruPlay）
-  function getTypeConfig(type, cpvBasis, conversionMetric, conversionValueMetric) {
+  function getTypeConfig(type, cpvBasis, conversionMetric, conversionValueMetric, messageMetric) {
     const base = TYPE_CONFIG[type];
     if (!base) return null;
+    if (type === 'MESSAGE') return {
+      ...base,
+      cost: { ...base.cost, den: 'messages' }, // 訊息廣告不允許以通用「成果」取代 offsite 事件
+    };
     if (type === 'CPA') return {
       ...base,
       cost: { ...base.cost, den: conversionMetric || 'conversions' },
@@ -541,6 +570,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   function detectTypeFromCampaign(name) {
     const n = String(name || '').toLowerCase();
     if (!n) return null;
+    if (/訊息|私訊|對話|傳訊|message|messenger|whatsapp|\bdm\b/.test(n)) return 'MESSAGE';
     if (/cpa|roas|轉換|conversion|purchase|購買|名單|lead|註冊|register/.test(n)) return 'CPA';
     if (/lcpc|導流|link/.test(n)) return 'LCPC';
     if (/cpv|觀看|video|thruplay/.test(n)) return 'CPV';
@@ -555,6 +585,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   CPC:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
   LCPC: ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
   CPV:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
+  MESSAGE: ['impressions', 'clicks', 'messages', 'linkClicks', 'reach', 'conversions', 'pageLikes', 'postLikes', 'comments', 'shares'],
   CPA:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'addToCart', 'conversions', 'conversionValue', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
 };
   // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
@@ -763,7 +794,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 
   /* ---------- 產表 ---------- */
   function buildSheet(wb, ExcelJS, parsed, config, sheetName) {
-    const tc = getTypeConfig(config.type, config.cpvBasis, config.conversionMetric, config.conversionValueMetric);
+    const tc = getTypeConfig(config.type, config.cpvBasis, config.conversionMetric, config.conversionValueMetric, config.messageMetric);
     if (!tc) throw new Error('未知的報表類型: ' + config.type);
 
     const externalFeeRate = Math.max(0, num(config.serviceFeeRate));
@@ -824,7 +855,11 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     // CPA 報表額外補齊 CTR / CPC / LCTR / LCPC / CPA / ROAS，且公式欄一律集中在最後面。
     // 其餘報表維持既有「成本指標 → 比率指標」邏輯，不改動原本格式。
     const cpaCalcFields = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(config.cpaCalcFields || {}) };
-    const calcKeys = config.type === 'CPA' ? [
+    const calcKeys = config.type === 'MESSAGE' ? [
+      ...(parsed.hasSpend && selKeys.includes('clicks') ? ['__cpc'] : []),
+      ...(selKeys.includes('clicks') && selKeys.includes('impressions') ? ['__ctr'] : []),
+      ...(hasCost ? ['__cost'] : []),
+    ] : config.type === 'CPA' ? [
       ...(cpaCalcFields.cpc && parsed.hasSpend && selKeys.includes('clicks') ? ['__cpc'] : []),
       ...(cpaCalcFields.ctr && selKeys.includes('clicks') && selKeys.includes('impressions') ? ['__ctr'] : []),
       ...(cpaCalcFields.lcpc && parsed.hasSpend && selKeys.includes('linkClicks') ? ['__lcpc'] : []),
@@ -1369,10 +1404,10 @@ const sectionDefs = [
     const wb = new ExcelJS.Workbook();
     let warnings = [];
     if (!config.composite) {
-      warnings = buildSheet(wb, ExcelJS, parsed, config, config.type);
+      warnings = buildSheet(wb, ExcelJS, parsed, config, config.type === 'MESSAGE' ? '訊息廣告' : config.type);
     } else {
       // 複合模式：行銷活動決定數據歸屬，廣告名稱決定各分頁中的素材
-      const order = ['CPM', 'CPC', 'LCPC', 'CPV', 'CPA'];
+      const order = ['CPM', 'CPC', 'LCPC', 'CPV', 'CPA', 'MESSAGE'];
       const creatives = config.creatives.filter(c => c.include !== false);
       if (!creatives.length) throw new Error('複合模式下找不到任何素材');
       const includedAds = new Set(creatives.map(c => c.raw));
@@ -1399,6 +1434,7 @@ const sectionDefs = [
           cpvBasis: config.cpvBasis || '3s',
           conversionMetric: config.conversionMetric || 'conversions',
           conversionValueMetric: config.conversionValueMetric || 'conversionValue',
+          messageMetric: config.messageMetric || '',
           campaignType: t,
           campaignTypeMap,
           campaignBudgets: config.campaignBudgets || {},
@@ -1418,7 +1454,7 @@ const sectionDefs = [
           cpaCalcFields: config.cpaCalcFields,
           metricLabelOverrides: config.metricLabelOverrides,
         };
-        warnings = warnings.concat(buildSheet(wb, ExcelJS, parsed, sheetCfg, sheetName(t, usedNames)));
+        warnings = warnings.concat(buildSheet(wb, ExcelJS, parsed, sheetCfg, sheetName(t === 'MESSAGE' ? '訊息廣告' : t, usedNames)));
       }
     }
     /* --- 內嵌設定:供「更新報表」還原(隱藏工作表,分段存 JSON) --- */
@@ -1480,8 +1516,9 @@ let campaignBudgetState = {}; // {行銷活動名稱: 預算}; 同一 Campaign �
 let activeTab = null;     // 複合模式目前編輯的類型頁籤
 let conversionMetricState = '';      // CPA 分母欄位 key
 let conversionValueMetricState = ''; // ROAS 價值欄位 key
+let messageMetricState = ''; // 訊息對話次數欄位 key（可手動指定）
 let extraParsedList = [];          // 額外 Breakdown Raw Data（metric key 已對齊主檔）
-const ALL_TYPES = ['CPM', 'CPC', 'LCPC', 'CPV', 'CPA'];
+const ALL_TYPES = ['CPM', 'CPC', 'LCPC', 'CPV', 'CPA', 'MESSAGE'];
 let singleMetricTouched = new Set(); // 單一模式手動調整過的欄位，不再被類型預設覆蓋
 
 /* ---------- 步驟 1:上傳解析 ---------- */
@@ -1498,7 +1535,9 @@ function readXlsxRows(arrayBuffer) {
 const VIDEO_METRIC_KEYS = new Set(['video3s', 'video15s', 'video25', 'video50', 'video75', 'video100']);
 // 轉換漏斗欄位只屬於 CPA／轉換型報表；複合報表的 CPC／CPM／LCPC／CPV 分頁不顯示也不產出。
 const CPA_ONLY_METRIC_KEYS = new Set(['addToCart', 'conversions', 'conversionValue']);
+const MESSAGE_ONLY_METRIC_KEYS = new Set(['messages']);
 function defaultMetricInclude(key, type = null) {
+  if (MESSAGE_ONLY_METRIC_KEYS.has(key)) return type === 'MESSAGE';
   if (CPA_ONLY_METRIC_KEYS.has(key)) return type === 'CPA';
   if (key === 'reach') return type === 'CPM';
   if (VIDEO_METRIC_KEYS.has(key)) return type === 'CPV';
@@ -1512,6 +1551,7 @@ function initFromParsed() {
   const mainType = document.querySelector('input[name=rtype]:checked').value;
   creativeState = parsed.ads.map(a => ({ raw: a, label: a, include: true, image: null }));
   const availKeys = parsed.metricCols.map(m => m.key);
+  messageMetricState = pickMessageMetric();
   singleMetricTouched = new Set();
   metricState = ReportGen.defaultMetricsForType(mainType, availKeys)
     .map(k => ({ key: k, include: defaultMetricInclude(k, mainType) }));
@@ -1806,6 +1846,17 @@ function migrateEmbeddedConfig(rawCfg) {
     cfg.adHeaderFields = { campaign: false, ad: true, date: false, budget: false, ...(cfg.adHeaderFields || {}) };
     cfg.v = 15;
   }
+  if (v < 16) {
+    // v16：新增獨立訊息廣告類型；舊的 CPM/CPC/LCPC/CPV/CPA 設定保持不變。
+    if (cfg.messageMetricState == null) cfg.messageMetricState = '';
+    cfg.v = 16;
+  }
+  if (v < 17) {
+    // v17：訊息 CPA 僅限 offsite 新的訊息對話；不延用舊版「成果」或其他分母。
+    cfg.messageMetricState = '';
+    cfg.messageMetricRaw = '';
+    cfg.v = 17;
+  }
   if (!cfg.adHeaderFields) cfg.adHeaderFields = { campaign: false, ad: true, date: false, budget: false };
   cfg.cpaCalcFields = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
   cfg.metricLabelOverrides = { addToCart: '', conversions: '', ...(cfg.metricLabelOverrides || {}) };
@@ -1869,6 +1920,8 @@ function tryRestore() {
     $('fEnd').value = parsed.dateMax;
     $('fStart').min = $('fEnd').min = parsed.dateMin;
     // 欄位狀態:以新 Raw Data 實際欄位為準,套舊設定的順序與勾選
+    // MESSAGE 的「成果」可能是分母，先還原分母再判斷此欄是否允許出現在訊息分頁。
+    messageMetricState = resolveSavedMessageMetric(cfg.messageMetricState, cfg.messageMetricRaw);
     const availKeys = parsed.metricCols.map(m => m.key);
     metricState = reconcileMetrics(cfg.metricState, availKeys);
     singleMetricTouched = new Set((cfg.metricState || []).map(m => m.key));
@@ -1957,6 +2010,15 @@ function reconcileMetrics(saved, availKeys, typeForDefault) {
   return out;
 }
 
+function pickMessageMetric() {
+  if (!parsed || !parsed.metricCols) return '';
+  // 「messages」只有符合 offsite 新的訊息對話時才會由 parseRaw 建立。
+  return parsed.metricCols.some(m => m.key === 'messages') ? 'messages' : '';
+}
+function resolveSavedMessageMetric(key, rawName) {
+  // 即使舊版儲存的來源是「成果」，更新時也要重新抓本次 Raw Data 的 offsite 事件。
+  return pickMessageMetric();
+}
 function pickConversionMetric(wantValue) {
   if (!parsed || !parsed.metricCols) return '';
   const exact = parsed.metricCols.find(m => m.key === (wantValue ? 'conversionValue' : 'conversions'));
@@ -2009,6 +2071,15 @@ function ensureMetricIncluded(list, key) {
   const hit = list.find(m => m.key === key);
   if (hit) hit.include = true;
 }
+function renderMessageSelector() {
+  if (!parsed) return;
+  const source = parsed.metricCols.find(m => m.key === 'messages');
+  $('messageMetricSelect').innerHTML = source
+    ? `<option value="messages">${esc(cleanMetricDisplayName(source.rawName))} → 訊息對話次數</option>`
+    : '<option value="">缺少 Raw Data「offsite 新的訊息對話」</option>';
+  messageMetricState = source ? 'messages' : '';
+  $('messageMetricSelect').value = messageMetricState;
+}
 function renderConversionSelectors() {
   if (!parsed) return;
   const opts = parsed.metricCols.map(m => `<option value="${esc(m.key)}">${esc((m.top || '') + (m.bottom || ''))}｜${esc(cleanMetricDisplayName(m.rawName || ''))}</option>`).join('');
@@ -2057,8 +2128,11 @@ function updateCpvBasisVisibility() {
   const used = isComposite() ? usedTypes() : [];
   const show = isComposite() ? used.includes('CPV') : mainType === 'CPV';
   const showConv = isComposite() ? used.includes('CPA') : mainType === 'CPA';
+  const showMessage = isComposite() ? used.includes('MESSAGE') : mainType === 'MESSAGE';
   $('cpvBasisBox').style.display = show ? 'flex' : 'none';
   $('conversionBasisBox').style.display = showConv ? 'flex' : 'none';
+  $('messageBasisBox').style.display = showMessage ? 'flex' : 'none';
+  if (showMessage) renderMessageSelector();
   if (showConv) renderConversionSelectors();
 }
 function mappedCampaignType(campaign) {
@@ -2126,7 +2200,7 @@ function ensurePageInfo(pg) {
 }
 // 某類型缺少的必要欄位(成本分母 / 比率分子分母),回傳缺漏的中文標籤
 function missingForType(t) {
-  const tc = ReportGen.getTypeConfig(t, getCpvBasis(), conversionMetricState, conversionValueMetricState);
+  const tc = ReportGen.getTypeConfig(t, getCpvBasis(), conversionMetricState, conversionValueMetricState, messageMetricState);
   const avail = new Set(parsed.metricCols.map(m => m.key));
   const need = new Set([tc.cost.den, tc.ratio.num, tc.ratio.den]);
   const miss = [...need].filter(k => !avail.has(k));
@@ -2196,7 +2270,9 @@ $('metricTabs').addEventListener('click', e => {
 });
 
 function metricAllowedForType(key, type) {
-  return type === 'CPA' || !CPA_ONLY_METRIC_KEYS.has(key);
+  if (MESSAGE_ONLY_METRIC_KEYS.has(key)) return type === 'MESSAGE';
+  if (CPA_ONLY_METRIC_KEYS.has(key)) return type === 'CPA';
+  return true;
 }
 function filterMetricsForType(list, type) {
   return (list || []).filter(m => metricAllowedForType(m.key, type));
@@ -2268,7 +2344,7 @@ function renderTypeInfos() {
   if (!pages.length) { $('typeInfoList').innerHTML = '<div style="color:var(--slate);font-size:13px">尚未辨識到可用的行銷活動類型</div>'; return; }
   $('typeInfoList').innerHTML = pages.map(({ page, type }) => {
     const info = ensurePageInfo(page);
-    const tc = ReportGen.getTypeConfig(type, getCpvBasis(), conversionMetricState, conversionValueMetricState);
+    const tc = ReportGen.getTypeConfig(type, getCpvBasis(), conversionMetricState, conversionValueMetricState, messageMetricState);
     const n = creativesForType(type).length;
     return `<div class="type-info-card">
       <h4><span class="badge">${esc(page)}</span>${type} 分頁 · ${n} 個素材</h4>
@@ -2298,6 +2374,10 @@ document.querySelectorAll('input[name=rtype]').forEach(r => r.addEventListener('
     const state = metricState.find(m => m.key === key);
     if (state && !singleMetricTouched.has(key)) state.include = (newType === 'CPV');
   }
+  for (const key of ['messages', 'conversions']) {
+    const state = metricState.find(m => m.key === key);
+    if (state && !singleMetricTouched.has(key)) state.include = key === messageMetricState && newType === 'MESSAGE' ? true : defaultMetricInclude(key, newType);
+  }
   updateCpvBasisVisibility();
   renderMetrics();
   refresh();
@@ -2308,6 +2388,15 @@ document.querySelectorAll('input[name=cpvBasis]').forEach(r => r.addEventListene
   if (isComposite()) renderTypeMetrics();
   refresh();
 }));
+$('messageMetricSelect').addEventListener('change', e => {
+  messageMetricState = e.target.value === 'messages' && parsed.metricCols.some(m => m.key === 'messages') ? 'messages' : '';
+  if (messageMetricState) {
+    if (isComposite()) ensureMetricIncluded(typeMetricState.MESSAGE, messageMetricState);
+    else ensureMetricIncluded(metricState, messageMetricState);
+  }
+  if (isComposite()) renderTypeMetrics(); else renderMetrics();
+  renderTypeInfos(); refresh();
+});
 $('conversionMetricSelect').addEventListener('change', e => {
   conversionMetricState = e.target.value || '';
   if (isComposite()) ensureMetricIncluded(typeMetricState.CPA, conversionMetricState);
@@ -2510,6 +2599,7 @@ function currentConfig() {
     cpvBasis: getCpvBasis(),
     conversionMetric: conversionMetricState,
     conversionValueMetric: conversionValueMetricState,
+    messageMetric: messageMetricState,
     cpaCalcFields: {
       ctr: $('cpaCalcCtr').checked,
       cpc: $('cpaCalcCpc').checked,
@@ -2571,7 +2661,7 @@ function refresh() {
   const cfg = currentConfig();
   const days = (cfg.startDate && cfg.endDate && cfg.endDate >= cfg.startDate) ? ReportGen.listDays(cfg.startDate, cfg.endDate).length : 0;
   if (!cfg.composite) {
-    const tc = ReportGen.getTypeConfig(cfg.type, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric);
+    const tc = ReportGen.getTypeConfig(cfg.type, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric, cfg.messageMetric);
     $('unitLabel').textContent = tc.unitLabel + ' 單價';
     renderBlueprintSingle(cfg.metrics, tc, cfg.creatives.filter(c => c.include !== false).length, null, cfg.serviceFeeRate, cfg.cpaCalcFields, cfg.metricLabelOverrides);
     const nCre = cfg.creatives.filter(c => c.include !== false).length;
@@ -2581,7 +2671,7 @@ function refresh() {
   } else {
     // 藍圖顯示目前頁籤類型的版型
     if (activeTab) {
-      const tc = ReportGen.getTypeConfig(activeTab, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric);
+      const tc = ReportGen.getTypeConfig(activeTab, cfg.cpvBasis, cfg.conversionMetric, cfg.conversionValueMetric, cfg.messageMetric);
       const mets = filterMetricsForType(typeMetricState[activeTab], activeTab).filter(m => m.include).map(m => m.key);
       const n = creativesForType(activeTab).length;
       renderBlueprintSingle(mets, tc, n, activeTab, cfg.serviceFeeRate, cfg.cpaCalcFields, cfg.metricLabelOverrides);
@@ -2607,7 +2697,11 @@ function renderBlueprintSingle(metrics, tc, nCre, tabLabel, serviceFeeRate = 0, 
     ? `<span class="bp fee">廣告花費</span><span class="bp fee">外加${feeLabel}%服務費</span>`
     : `<span class="bp fee">廣告費用</span>`;
   const ccf = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(cpaCalcFields || {}) };
-  const calcLabels = tc.unitLabel === 'CPA' ? [
+  const calcLabels = tc.unitLabel === 'CPA/訊息' ? [
+    ...(parsed.hasSpend && metrics.includes('clicks') ? ['CPC'] : []),
+    ...(metrics.includes('clicks') && metrics.includes('impressions') ? ['CTR'] : []),
+    ...(hasCost ? ['CPA/訊息'] : []),
+  ] : tc.unitLabel === 'CPA' ? [
     ...(ccf.cpc && parsed.hasSpend && metrics.includes('clicks') ? ['CPC'] : []),
     ...(ccf.ctr && metrics.includes('clicks') && metrics.includes('impressions') ? ['CTR'] : []),
     ...(ccf.lcpc && parsed.hasSpend && metrics.includes('linkClicks') ? ['LCPC'] : []),
@@ -2644,16 +2738,18 @@ $('btnGen').addEventListener('click', async () => {
     if (!cfg.composite) {
       if (!cfg.metrics.length) throw new Error('請至少勾選一個數據欄位');
       if (cfg.type === 'CPA' && !cfg.conversionMetric) throw new Error('CPA 報表請先選擇「CPA 分母」轉換欄位');
+      if (cfg.type === 'MESSAGE' && (cfg.messageMetric !== 'messages' || !cfg.metrics.includes('messages'))) throw new Error('訊息廣告 Raw Data 必須包含並勾選「offsite 新的訊息對話」，報表顯示「訊息對話次數」');
     } else {
       const used = usedTypes();
       if (!used.length) throw new Error('複合模式:目前沒有可辨識的行銷活動類型');
       for (const t of used)
         if (!cfg.typeConfigs[t].metrics.length) throw new Error(`${t} 分頁尚未勾選任何數據欄位`);
       if (used.includes('CPA') && !cfg.conversionMetric) throw new Error('CPA 分頁請先選擇「CPA 分母」轉換欄位');
+      if (used.includes('MESSAGE') && (cfg.messageMetric !== 'messages' || !cfg.typeConfigs.MESSAGE.metrics.includes('messages'))) throw new Error('訊息廣告分頁缺少「offsite 新的訊息對話」或未勾選「訊息對話次數」');
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 15, savedAt: new Date().toISOString().slice(0, 10),
+      v: 17, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
       reportFileName: cfg.reportFileName,
       mainType: document.querySelector('input[name=rtype]:checked').value,
@@ -2663,6 +2759,7 @@ $('btnGen').addEventListener('click', async () => {
       byCreativeSections: cfg.byCreativeSections,
       cpvBasis: cfg.cpvBasis,
       conversionMetricState, conversionValueMetricState,
+      messageMetricState, messageMetricRaw: metricRawName(messageMetricState),
       cpaCalcFields: cfg.cpaCalcFields,
       metricLabelOverrides: cfg.metricLabelOverrides,
       conversionMetricRaw: metricRawName(conversionMetricState),
