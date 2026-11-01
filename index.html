@@ -185,7 +185,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <body>
 <header>
   <div class="wrap">
-    <h1>廣告成效報表產生器</h1><span class="sub">v17.1 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
+    <h1>廣告成效報表產生器</h1><span class="sub">v17.2 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
     <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / 訊息廣告（ROAS 選配）</span>
   </div>
 </header>
@@ -570,7 +570,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   function detectTypeFromCampaign(name) {
     const n = String(name || '').toLowerCase();
     if (!n) return null;
-    if (/訊息|私訊|對話|傳訊|message|messenger|whatsapp|\bdm\b/.test(n)) return 'MESSAGE';
+    if (/訊息|私訊|對話|傳訊|message|messenger|whatsapp|msg|\bdm\b/.test(n)) return 'MESSAGE';
     if (/cpa|roas|轉換|conversion|purchase|購買|名單|lead|註冊|register/.test(n)) return 'CPA';
     if (/lcpc|導流|link/.test(n)) return 'LCPC';
     if (/cpv|觀看|video|thruplay/.test(n)) return 'CPV';
