@@ -185,7 +185,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <body>
 <header>
   <div class="wrap">
-    <h1>廣告成效報表產生器</h1><span class="sub">v17.2 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
+    <h1>廣告成效報表產生器</h1><span class="sub">v17.3 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
     <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / 訊息廣告（ROAS 選配）</span>
   </div>
 </header>
@@ -585,7 +585,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   CPC:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
   LCPC: ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
   CPV:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
-  MESSAGE: ['impressions', 'clicks', 'messages', 'linkClicks', 'reach', 'conversions', 'pageLikes', 'postLikes', 'comments', 'shares'],
+  MESSAGE: ['impressions', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'messages', 'reach', 'conversions'],
   CPA:  ['impressions', 'reach', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'addToCart', 'conversions', 'conversionValue', 'video3s', 'video15s', 'video25', 'video50', 'video75', 'video100'],
 };
   // 依類型回傳建議的欄位 key 順序(只含 parsed 實際存在的欄位)
@@ -1857,6 +1857,23 @@ function migrateEmbeddedConfig(rawCfg) {
     cfg.messageMetricRaw = '';
     cfg.v = 17;
   }
+  if (v < 18) {
+    // v18：只有符合舊版訊息欄位預設起始順序時才調整位置；其餘自訂順序不動。
+    const moveOldMessageOrder = list => {
+      if (!Array.isArray(list) || list.length < 4 ||
+          list[0]?.key !== 'impressions' || list[1]?.key !== 'clicks' ||
+          list[2]?.key !== 'messages' || list[3]?.key !== 'linkClicks') return list;
+      const desired = ['impressions', 'clicks', 'linkClicks', 'pageLikes', 'postLikes', 'comments', 'shares', 'messages', 'reach', 'conversions'];
+      const byKey = new Map(list.map(item => [item.key, item]));
+      return [...desired.map(key => byKey.get(key)).filter(Boolean),
+              ...list.filter(item => !desired.includes(item.key))];
+    };
+    if (cfg.mainType === 'MESSAGE') cfg.metricState = moveOldMessageOrder(cfg.metricState);
+    if (cfg.typeMetricState && Array.isArray(cfg.typeMetricState.MESSAGE)) {
+      cfg.typeMetricState = { ...cfg.typeMetricState, MESSAGE: moveOldMessageOrder(cfg.typeMetricState.MESSAGE) };
+    }
+    cfg.v = 18;
+  }
   if (!cfg.adHeaderFields) cfg.adHeaderFields = { campaign: false, ad: true, date: false, budget: false };
   cfg.cpaCalcFields = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
   cfg.metricLabelOverrides = { addToCart: '', conversions: '', ...(cfg.metricLabelOverrides || {}) };
@@ -2378,6 +2395,13 @@ document.querySelectorAll('input[name=rtype]').forEach(r => r.addEventListener('
     const state = metricState.find(m => m.key === key);
     if (state && !singleMetricTouched.has(key)) state.include = key === messageMetricState && newType === 'MESSAGE' ? true : defaultMetricInclude(key, newType);
   }
+  // 切換到訊息廣告時，單一報表也套用訊息類型的欄位順序（第 8 項為訊息對話次數）。
+  // 沿用各欄位目前的勾選狀態；不改變其他報表類型的排序。
+  if (newType === 'MESSAGE') {
+    const byKey = new Map(metricState.map(m => [m.key, m]));
+    metricState = ReportGen.defaultMetricsForType('MESSAGE', metricState.map(m => m.key))
+      .map(key => byKey.get(key)).filter(Boolean);
+  }
   updateCpvBasisVisibility();
   renderMetrics();
   refresh();
@@ -2749,7 +2773,7 @@ $('btnGen').addEventListener('click', async () => {
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 17, savedAt: new Date().toISOString().slice(0, 10),
+      v: 18, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
       reportFileName: cfg.reportFileName,
       mainType: document.querySelector('input[name=rtype]:checked').value,
