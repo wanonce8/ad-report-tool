@@ -185,7 +185,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <body>
 <header>
   <div class="wrap">
-    <h1>廣告成效報表產生器</h1><span class="sub">v17.3 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
+    <h1>廣告成效報表產生器</h1><span class="sub">v17.4 · 廣告活動走期自動辨識 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
     <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / 訊息廣告（ROAS 選配）</span>
   </div>
 </header>
@@ -293,8 +293,9 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
         <legend>走期</legend>
         <div class="grid">
           <div class="field"><label for="fStart">走期開始</label><input type="date" id="fStart"></div>
-          <div class="field"><label for="fEnd">走期結束</label><input type="date" id="fEnd"></div>
+          <div class="field"><label for="fEnd">走期結束（自動辨識活動名稱，可修改）</label><input type="date" id="fEnd"></div>
         </div>
+        <div class="advanced-note" id="campaignEndDateHint" aria-live="polite">上傳 Raw Data 後，自動辨識如 10/29-11/13、1029-1113 的活動走期。</div>
       </fieldset>
 
       <fieldset id="reportFileNameBox">
@@ -577,6 +578,67 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     if (/cpc|互動|allclick/.test(n)) return 'CPC';
     if (/cpm|觸及|reach/.test(n)) return 'CPM';
     return null;
+  }
+
+
+  // Campaign 名稱中的「起日-迄日」：10/29-11/13、1029-1113、2026/10/29-2026/11/13。
+  // 以 Raw Data 的最後日期推定省略的年份；跨年時會自行將結束年份遞增。
+  function inferCampaignEndDate(campaigns, rawDateMax) {
+    const fallback = String(rawDateMax || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fallback)) return { end: fallback, source: 'raw', matches: [] };
+    const ref = new Date(`${fallback}T00:00:00Z`);
+    const refYear = ref.getUTCFullYear();
+    const isoDate = (y, m, d) => {
+      if (!Number.isInteger(y) || y < 2000 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return '';
+      const date = new Date(Date.UTC(y, m - 1, d));
+      if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return '';
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    };
+    const buildRange = (sm, sd, em, ed, explicitStartYear, explicitEndYear, campaign) => {
+      sm = Number(sm); sd = Number(sd); em = Number(em); ed = Number(ed);
+      if (!isoDate(refYear, sm, sd) || !isoDate(refYear, em, ed)) return null;
+      let startYear = explicitStartYear ? Number(explicitStartYear) : null;
+      if (!startYear) {
+        let nearest = Infinity;
+        for (const y of [refYear - 1, refYear, refYear + 1]) {
+          const s = isoDate(y, sm, sd);
+          if (!s) continue;
+          const dist = Math.abs(Date.parse(`${s}T00:00:00Z`) - ref.getTime());
+          if (dist < nearest) { nearest = dist; startYear = y; }
+        }
+      }
+      if (!startYear) return null;
+      const start = isoDate(startYear, sm, sd);
+      const endYear = explicitEndYear ? Number(explicitEndYear) : startYear + ((em * 100 + ed) < (sm * 100 + sd) ? 1 : 0);
+      const end = isoDate(endYear, em, ed);
+      if (!start || !end || end < start) return null;
+      // 防止把名稱中的其他、年代過久的數字當作本次投放走期。
+      const daysApart = Math.abs((Date.parse(`${start}T00:00:00Z`) - ref.getTime()) / 86400000);
+      if (daysApart > 185 || (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000 > 370) return null;
+      return { campaign, start, end };
+    };
+    const matches = [];
+    for (const rawName of new Set(campaigns || [])) {
+      const campaign = String(rawName || '');
+      const name = campaign.normalize('NFKC');
+      // 先解析帶斜線／點號（可選完整年份）的日期組合。
+      const separated = /(?:^|[^\d])(?:(20\d{2})[\/.-])?(\d{1,2})[\/.-](\d{1,2})\s*[-~～–—至]\s*(?:(20\d{2})[\/.-])?(\d{1,2})[\/.-](\d{1,2})(?!\d)/g;
+      let match, found = false;
+      while ((match = separated.exec(name)) !== null) {
+        const range = buildRange(match[2], match[3], match[5], match[6], match[1], match[4], campaign);
+        if (range) { matches.push(range); found = true; }
+      }
+      if (found) continue;
+      const compact = /(?:^|[^\d])(\d{2})(\d{2})\s*[-~～–—至]\s*(\d{2})(\d{2})(?!\d)/g;
+      while ((match = compact.exec(name)) !== null) {
+        const range = buildRange(match[1], match[2], match[3], match[4], null, null, campaign);
+        if (range) matches.push(range);
+      }
+    }
+    if (!matches.length) return { end: fallback, source: 'raw', matches };
+    const latest = matches.reduce((max, item) => item.end > max ? item.end : max, '');
+    // 如有後續歸因數據超過原排定結束日，避免產出日期早於 Raw Data 的最後日期。
+    return { end: latest >= fallback ? latest : fallback, source: latest >= fallback ? 'campaign' : 'raw_after_campaign', matches };
   }
 
   // 每個類型的「優先欄位」(其餘可用欄位接在後面),供 UI 帶入預設勾選與排序
@@ -1500,7 +1562,7 @@ const sectionDefs = [
     return w;
   }
 
-  return { parseRaw, buildWorkbook, buildSheet, aggregate, aggregateByAdDimension, aggregateByAdGenderAge, listDays, METRIC_DEFS, TYPE_CONFIG, colLetter, defaultMetricsForType, detectTypeFromCampaign, getTypeConfig, readEmbeddedConfig };
+  return { parseRaw, buildWorkbook, buildSheet, aggregate, aggregateByAdDimension, aggregateByAdGenderAge, listDays, METRIC_DEFS, TYPE_CONFIG, colLetter, defaultMetricsForType, detectTypeFromCampaign, inferCampaignEndDate, getTypeConfig, readEmbeddedConfig };
 });
 
 </script>
@@ -1609,6 +1671,42 @@ function unlockAndRender() {
   $('card3').classList.remove('locked');
   refresh();
 }
+
+// 走期結束的來源：活動名稱優先，手動修改的日期於更新報表時保留。
+let metaEndDateMode = 'auto';
+let metaEndDateGuess = null;
+function applyMetaCampaignEndDate(manualDate = '') {
+  if (!parsed) return;
+  metaEndDateGuess = ReportGen.inferCampaignEndDate(parsed.campaigns, parsed.dateMax);
+  if (manualDate) {
+    metaEndDateMode = 'manual';
+    $('fEnd').value = manualDate;
+  } else {
+    metaEndDateMode = 'auto';
+    $('fEnd').value = metaEndDateGuess.end || parsed.dateMax;
+  }
+  showMetaCampaignEndHint();
+}
+function showMetaCampaignEndHint() {
+  if (!parsed) return;
+  const hint = $('campaignEndDateHint');
+  if (!hint) return;
+  const inferred = metaEndDateGuess || ReportGen.inferCampaignEndDate(parsed.campaigns, parsed.dateMax);
+  if (metaEndDateMode === 'manual') {
+    hint.textContent = `目前使用手動指定的結束日 ${$('fEnd').value}；上傳新版 Raw Data 更新報表時，仍會保留手動日期。`;
+  } else if (inferred.source === 'campaign') {
+    const unique = [...new Set(inferred.matches.map(item => item.end))];
+    const example = inferred.matches.find(item => item.end === inferred.end);
+    const suffix = unique.length > 1 ? `（辨識到 ${unique.length} 種結束日期，採用最晚一天）` : '';
+    hint.textContent = `✓ 從廣告活動名稱自動帶入結束日 ${inferred.end}${suffix}${example ? `；來源：${example.campaign}` : ''}。可直接修改日期。`;
+  } else if (inferred.source === 'raw_after_campaign') {
+    hint.textContent = `廣告活動名稱中的排定結束日早於 Raw Data 最後日期，因此保留 Raw Data 的 ${inferred.end}，避免截斷後續數據。可手動調整。`;
+  } else {
+    hint.textContent = `未在廣告活動名稱辨識到完整走期，結束日沿用 Raw Data 最後日期 ${inferred.end}。可手動調整。`;
+  }
+}
+$('fEnd').addEventListener('input', () => { if (!parsed) return; metaEndDateMode = 'manual'; showMetaCampaignEndHint(); });
+
 $('fileInput').addEventListener('change', e => {
   const f = e.target.files[0];
   if (!f) return;
@@ -1621,7 +1719,8 @@ $('fileInput').addEventListener('change', e => {
       parsed = ReportGen.parseRaw(readXlsxRows(ev.target.result));
       if (!parsed.records.length) throw new Error('沒有讀到任何有效資料列,請確認檔案內容');
       // 新建報表仍以本次主 Raw Data 起迄日期初始化，避免沿用上一次操作的日期。
-      $('fStart').value = parsed.dateMin; $('fEnd').value = parsed.dateMax;
+      $('fStart').value = parsed.dateMin;
+      applyMetaCampaignEndDate();
       initFromParsed();
       pendingBreakdownFiles = keptPending;
       breakdownSlotFiles = keptSlots;
@@ -1874,6 +1973,11 @@ function migrateEmbeddedConfig(rawCfg) {
     }
     cfg.v = 18;
   }
+  if (v < 19) {
+    // 既有 v18 報表沒有記錄「手動／自動」，改用本次新 Raw Data 的活動名稱辨識。
+    cfg.endDateMode = 'auto';
+    cfg.v = 19;
+  }
   if (!cfg.adHeaderFields) cfg.adHeaderFields = { campaign: false, ad: true, date: false, budget: false };
   cfg.cpaCalcFields = { ctr: false, cpc: false, lctr: true, lcpc: true, ...(cfg.cpaCalcFields || {}) };
   cfg.metricLabelOverrides = { addToCart: '', conversions: '', ...(cfg.metricLabelOverrides || {}) };
@@ -1932,9 +2036,9 @@ function tryRestore() {
     if ($('updateBreakdownHint')) $('updateBreakdownHint').innerHTML = need.length
       ? `舊報表已啟用：<b>${need.join('／')}</b>。請於上方各槽位補上本次最新 Breakdown Raw Data。`
       : '舊報表未啟用地區／裝置／版位交叉分析；如本週新增需求仍可直接上傳。';
-    // 走期:起=舊設定,迄=新資料最大日期(週更自然延伸)
+    // 走期：保留舊設定起日；新資料優先解析 Campaign 內日期，手動日期不覆蓋。
     $('fStart').value = cfg.startDate || parsed.dateMin;
-    $('fEnd').value = parsed.dateMax;
+    applyMetaCampaignEndDate(cfg.endDateMode === 'manual' ? cfg.endDate : '');
     $('fStart').min = $('fEnd').min = parsed.dateMin;
     // 欄位狀態:以新 Raw Data 實際欄位為準,套舊設定的順序與勾選
     // MESSAGE 的「成果」可能是分母，先還原分母再判斷此欄是否允許出現在訊息分頁。
@@ -1998,7 +2102,8 @@ function tryRestore() {
     // 先完成 UI 渲染及確認核心欄位，再回報成功。
     unlockAndRender();
     applyMode();
-    if ($('fStart').value !== (cfg.startDate || parsed.dateMin) || $('fEnd').value !== parsed.dateMax)
+    if ($('fStart').value !== (cfg.startDate || parsed.dateMin) ||
+        $('fEnd').value !== (cfg.endDateMode === 'manual' ? cfg.endDate : (metaEndDateGuess?.end || parsed.dateMax)))
       throw new Error('走期未正確帶回，請檢查還原流程');
     updateRestoreReady = true;
     setUpdateSettingsReadonly(!needReview, needReview ? '⚠ 部分設定需確認・可編輯' : '✓ 舊設定已還原・唯讀');
@@ -2131,7 +2236,7 @@ function renderSettings() {
   // 更新報表：保留 tryRestore 已帶入的舊走期起日與最新走期迄日。
   // 建立新報表：日期尚未指定時才使用 Raw Data 日期。
   if (!$('fStart').value) $('fStart').value = parsed.dateMin;
-  if (!$('fEnd').value) $('fEnd').value = parsed.dateMax;
+  if (!$('fEnd').value) applyMetaCampaignEndDate();
   $('fStart').min = $('fEnd').min = parsed.dateMin;
   renderCampaignBudgets();
   applyMode();
@@ -2773,12 +2878,12 @@ $('btnGen').addEventListener('click', async () => {
     }
     // 內嵌設定快照,供之後「更新報表」還原
     cfg.embedConfig = {
-      v: 18, savedAt: new Date().toISOString().slice(0, 10),
+      v: 19, savedAt: new Date().toISOString().slice(0, 10),
       composite: cfg.composite,
       reportFileName: cfg.reportFileName,
       mainType: document.querySelector('input[name=rtype]:checked').value,
       single: { name: $('fName').value.trim(), budget: $('fBudget').value, unitPrice: $('fUnit').value },
-      startDate: cfg.startDate, endDate: cfg.endDate,
+      startDate: cfg.startDate, endDate: cfg.endDate, endDateMode: metaEndDateMode,
       sections: cfg.sections,
       byCreativeSections: cfg.byCreativeSections,
       cpvBasis: cfg.cpvBasis,
