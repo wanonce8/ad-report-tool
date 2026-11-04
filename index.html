@@ -185,7 +185,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <body>
 <header>
   <div class="wrap">
-    <h1>廣告成效報表產生器</h1><span class="sub">v17.4 · 廣告活動走期自動辨識 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
+    <h1>廣告成效報表產生器</h1><span class="sub">v17.6 · 素材數據細框線補齊 · 廣告活動走期自動辨識 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
     <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / 訊息廣告（ROAS 選配）</span>
   </div>
 </header>
@@ -845,8 +845,8 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
   const fill = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
   const bd = (t, b, l, r) => {
     const o = {};
-    if (t) o.top = { style: t }; if (b) o.bottom = { style: b };
-    if (l) o.left = { style: l }; if (r) o.right = { style: r };
+    if (t) o.top = { style: t, color: { argb: BLACK } }; if (b) o.bottom = { style: b, color: { argb: BLACK } };
+    if (l) o.left = { style: l, color: { argb: BLACK } }; if (r) o.right = { style: r, color: { argb: BLACK } };
     return o;
   };
   const FMT = {
@@ -945,6 +945,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const lastCol = blocks.length ? blocks[blocks.length - 1] + groupW - 1 : dStart + groupW - 1;
     const gCol = (start, key) => start + groupKeys.indexOf(key);
     const boundaries = new Set([1, dStart, ...blocks]); // 左 medium 框線位置
+    // 維持原始區塊粗線位置；各數值欄（含 LCPC、LCTR）之間一律使用黑色 thin 細框線。
     const vSide = c => [boundaries.has(c) ? 'medium' : 'thin', c === lastCol ? 'medium' : 'thin'];
 
     /* --- 頂部資訊區(B:D 合併) --- */
@@ -1000,19 +1001,22 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     blocks.forEach((bStart, i) => {
       const info = adInfo[i];
       const blockEnd = bStart + groupW - 1;
-      const reserveForImage = Math.min(3, Math.max(0, groupW - 1));
-      const textEnd = Math.max(bStart, blockEnd - reserveForImage);
       const selectedInfo = [];
-      if (adHeaderFields.campaign) selectedInfo.push([info.campaignText, undefined]);
-      if (adHeaderFields.ad) selectedInfo.push([info.name, undefined]);
-      if (adHeaderFields.date) selectedInfo.push([info.dateText, undefined]);
-      if (adHeaderFields.budget) selectedInfo.push([info.budget || '', info.budget ? '"$"#,##0' : undefined]);
-      // 最多 4 行，固定使用第 5~8 列；選得越少越靠近正式表頭。
+      if (adHeaderFields.campaign) selectedInfo.push({ field: 'campaign', value: info.campaignText });
+      if (adHeaderFields.ad) selectedInfo.push({ field: 'ad', value: info.name });
+      if (adHeaderFields.date) selectedInfo.push({ field: 'date', value: info.dateText });
+      if (adHeaderFields.budget) selectedInfo.push({ field: 'budget', value: info.budget || '', numFmt: info.budget ? '"$"#,##0' : undefined });
+      // 最多 4 行，固定使用第 5~8 列；所有廣告名稱只合併 4 欄。
+      // 名稱起點對齊同支素材「廣告呈現次數」欄（若未選此指標則對齊素材首欄）。
+      const impressionOffset = groupKeys.indexOf('impressions');
+      const adNameStart = impressionOffset >= 0 ? bStart + impressionOffset : bStart;
       const startInfoRow = Math.max(5, 9 - selectedInfo.length);
-      selectedInfo.forEach(([value, numFmt], idx) => {
+      selectedInfo.forEach(({ field, value, numFmt }, idx) => {
         const r = startInfoRow + idx;
-        set(r, bStart, { value, numFmt, font: { size: 11 }, h: 'left' });
-        if (textEnd > bStart) ws.mergeCells(r, bStart, r, textEnd);
+        const textStart = field === 'ad' ? adNameStart : bStart;
+        const textEnd = Math.min(blockEnd, textStart + 3); // 恰好合併 4 欄，不跨素材區塊
+        set(r, textStart, { value, numFmt, font: { size: 11 }, h: 'left' });
+        if (textEnd > textStart) ws.mergeCells(r, textStart, r, textEnd);
       });
     });
 
@@ -1105,8 +1109,52 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
       });
     });
 
+    // v17.8：每日素材的公式欄（LCPC/LCTR/CPA/ROAS 等）與普通數據欄統一套用底色及框線。
+    // 無投遞或各項指標及花費皆為 0 的日期視為無有效數據，整個素材區塊反灰；
+    // 不清掉公式，仍保留 0 的計算結果。此檢核於所有單元格寫入完成後執行，
+    // 避免公式單元格的預設樣式覆蓋無數據日期的灰底。
+    const hasEffectiveActivity = data => !!data && (
+      Math.abs(Number(data.spend) || 0) > 1e-10 ||
+      Object.values(data.values || {}).some(v => Math.abs(Number(v) || 0) > 1e-10)
+    );
+    days.forEach((day, i) => {
+      const r = r0 + i;
+      const activeBlocks = creatives.map(cre => hasEffectiveActivity(
+        (agg.byAdDate.get(cre.raw) || new Map()).get(day)
+      ));
+      blocks.forEach((start, bi) => {
+        for (let j = 0; j < groupW; j++) {
+          const c = start + j;
+          const cell = ws.getCell(r, c);
+          // 明確寫回四邊框線；最後一個欄位為素材區塊右側粗分隔線。
+          cell.border = bd('thin', 'thin', j === 0 ? 'medium' : 'thin', j === groupW - 1 ? 'medium' : 'thin');
+          if (!activeBlocks[bi]) cell.fill = fill(GREY);
+        }
+      });
+      // 左側每日總表如當天沒有任何素材有有效投遞，也將公式欄補滿灰底。
+      if (!activeBlocks.some(Boolean)) {
+        ws.getCell(r, 1).fill = fill(GREY);
+        for (let j = 0; j < groupW; j++) ws.getCell(r, dStart + j).fill = fill(GREY);
+      }
+    });
+
     /* --- 素材總計 / 總預算 / 總執行率 --- */
     const rEnd = r0 + days.length - 1, rTot = rEnd + 1;
+    // v17.9：保留完整走期與所有公式，但隱藏 Raw Data 最後一天之後的未來日期列。
+    // 只處理每日明細 (r0 ~ rEnd)，不隱藏素材總計、預算、執行率與下方受眾分析。
+    // 更新報表重新產生時，會依本次最新 Raw Data 自動展開已經有資料的日期。
+    // 使用本分頁、目前納入的素材與 Campaign 對應資料，避免其他報表分頁的日期干擾。
+    const relevantDates = sheetRecords
+      .filter(rec => rec.date && rec.date >= config.startDate && rec.date <= config.endDate &&
+        adWhitelist.includes(rec.ad || '未命名素材') &&
+        (!config.campaignType || mappedTypeForInfo(rec) === config.campaignType))
+      .map(rec => rec.date);
+    const latestDataDate = relevantDates.length
+      ? relevantDates.reduce((latest, day) => day > latest ? day : latest, '')
+      : (parsed.dateMax || '');
+    days.forEach((day, i) => {
+      if (day > latestDataDate) ws.getRow(r0 + i).hidden = true;
+    });
     set(rTot, 1, { value: '素材總計', font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', ...vSide(1)) });
     const totGroup = start => groupKeys.forEach((k, j) => {
       const c = start + j, [l, rr] = vSide(c), border = bd('medium', 'medium', l, rr);
@@ -1120,7 +1168,10 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     totGroup(dStart);
     blocks.forEach(b => totGroup(b));
     // 黃色摘要列只延伸到左側「每日總表本體」最後一欄，不進入右側素材區塊。
-    const summaryLastCol = dStart + groupW - 1;
+    // 黃色預算／執行率數字必須緊接在每日總表最後一個實際數據欄的下方。
+    // 例如 CPC 報表最後是 CTR，就放在 CTR 欄，不固定寫死 L 欄。
+    const lastVisibleMetricKey = groupKeys[groupKeys.length - 1];
+    const summaryLastCol = gCol(dStart, lastVisibleMetricKey);
     for (let c = 1; c <= summaryLastCol; c++) {
       const l = c === 1 ? 'medium' : 'thin';
       const rr = c === summaryLastCol ? 'medium' : 'thin';
